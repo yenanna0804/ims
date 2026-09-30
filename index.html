@@ -1268,6 +1268,7 @@ let khptm2Step='B1';
 let khptm2DeviceType='Core di động';
 let khptm2RadioProvided={ext:false,ktm:false};
 let khptm2RadioNetXReviewed=false;
+let khptm2ProviderReturnTo='Ban KT';
 let khptm2UnitLeaderSigned=false;
 let khptm2LDTCTSigned=false;
 let khptm2CurrentRequest='2.1';
@@ -1282,7 +1283,11 @@ let khptm2ProviderUnit='Ban KTM';
 let khptm2Issue={number:'',suffix:'KT',date:'2026-12-05',eoffice:''};
 
 function khptm2TypeTag(){return khptm2DeviceType==='Vô tuyến'?'Vo_tuyen':'Core'}
-function khptm2ResetRadioFlow(){khptm2RadioProvided={ext:false,ktm:false};khptm2RadioNetXReviewed=false}
+function khptm2ResetRadioFlow(){
+  khptm2RadioProvided={ext:false,ktm:false};
+  khptm2RadioNetXReviewed=false;
+  khptm2ProviderReturnTo='Ban KT';
+}
 function openKHPTMBuildType(type){
   khptm2DeviceType=type;
   khptm2Step='B1';khptm2Role='Chuyên viên Ban KT';khptm2UnitLeaderSigned=false;khptm2LDTCTSigned=false;
@@ -1303,7 +1308,7 @@ function openKHPTMBuildCreate(){
 }
 function openKHPTMBuildProcess(step){
   khptm2Step=step||khptm2Step;
-  var roleMap={B1:'Chuyên viên Ban KT',BINFO:'Đơn vị cung cấp thông tin',BREVIEW:'NetX thẩm định',B2:'LĐ Ban KT',B3:'LĐTCT',B4:'Văn thư',DONE:'Văn thư'};
+  var roleMap={B1:'Chuyên viên Ban KT',BINFO:'Đơn vị cung cấp thông tin',BREVIEW:'NetX thẩm định',BEND:'Chuyên viên Ban KT',B2:'LĐ Ban KT',B3:'LĐTCT',B4:'Văn thư',DONE:'Văn thư'};
   khptm2Role=roleMap[khptm2Step]||khptm2Role||'Chuyên viên Ban KT';
   document.querySelectorAll('.nav .item').forEach(function(x){x.classList.remove('active')});
   var nav=document.getElementById('nav-khptm');if(nav)nav.classList.add('active');
@@ -1336,50 +1341,71 @@ function khptm2Log(actor,text){
   renderKHPTM2History();
 }
 function renderKHPTMBuild(){
-  var sel=document.getElementById('khptm2Role');if(sel)sel.value=khptm2Role;
+  var sel=document.getElementById('khptm2Role');
+  if(sel){
+    var allowed=khptm2DeviceType==='Vô tuyến'
+      ? ['Chuyên viên Ban KT','Đơn vị cung cấp thông tin','NetX thẩm định']
+      : ['Chuyên viên Ban KT','Đơn vị cung cấp thông tin','LĐ Ban KT','LĐTCT','Văn thư'];
+    Array.from(sel.options).forEach(function(o){o.hidden=!allowed.includes(o.value)});
+    if(!allowed.includes(khptm2Role)){khptm2Role='Chuyên viên Ban KT';khptm2Step='B1'}
+    sel.value=khptm2Role;
+  }
+
   var title=document.querySelector('#khptm-build-process .titlebar h1');if(title)title.textContent='Xây dựng, trình KHPTM - '+khptm2DeviceType;
   var crumb=document.querySelector('#khptm-build-process .crumb');if(crumb)crumb.textContent='QUẢN LÝ KHPTM > Xây dựng, trình KHPTM > '+khptm2DeviceType+' > Chi tiết xử lý';
+
   ['khptm2PanelSpecialist','khptm2PanelProvider','khptm2PanelUnitLeader','khptm2PanelLDTCT','khptm2PanelClerk'].forEach(function(id){var el=document.getElementById(id);if(el)el.classList.remove('active')});
   var map={'Chuyên viên Ban KT':'khptm2PanelSpecialist','Đơn vị cung cấp thông tin':'khptm2PanelProvider','NetX thẩm định':'khptm2PanelProvider','LĐ Ban KT':'khptm2PanelUnitLeader','LĐTCT':'khptm2PanelLDTCT','Văn thư':'khptm2PanelClerk'};
   var panel=document.getElementById(map[khptm2Role]);if(panel)panel.classList.add('active');
+
   renderKHPTM2TopActions();renderKHPTM2Specialist();renderKHPTM2Provider();renderKHPTM2UnitLeader();renderKHPTM2LDTCT();renderKHPTM2Clerk();renderKHPTM2Extended();renderKHPTM2History();renderKHPTM2Exchange();
 }
 function renderKHPTM2TopActions(){
   var h=document.getElementById('khptm2TopActions');if(!h)return;var html='';
-  if(khptm2Role==='Chuyên viên Ban KT'&&khptm2Step==='B1'){
+
+  if(khptm2Role==='Chuyên viên Ban KT'&&(khptm2Step==='B1'||khptm2Step==='BEND')){
     html+="<button onclick=\"toast('Đã lưu nháp hồ sơ KHPTM "+khptm2DeviceType+"')\">Lưu nháp</button>";
     html+="<button onclick=\"openKHPTM2Preview('submission')\">Xem Tờ trình</button>";
     html+="<button onclick=\"openKHPTM2Preview('draftDecision')\">Xem dự thảo QĐ Tập đoàn</button>";
-    html+="<button class=\"khptm-emphasis\" onclick=\"openKHPTM2Transfer('khbuildRoute')\">Chuyển</button>";
+    if(khptm2Step==='B1')html+="<button class=\"khptm-emphasis\" onclick=\"openKHPTM2Transfer('khbuildRoute')\">Chuyển</button>";
+
   }else if(khptm2Role==='Đơn vị cung cấp thông tin'&&khptm2Step==='BINFO'){
     html+="<button onclick=\"openKHPTM2Preview('gnv')\">Xem VB GNV</button>";
     html+="<button class=\"khptm-emphasis\" onclick=\"openKHPTM2Transfer('khbuildInfoReturn')\">Chuyển</button>";
+
   }else if(khptm2Role==='NetX thẩm định'&&khptm2Step==='BREVIEW'){
     html+="<button onclick=\"openKHPTM2Preview('gnv')\">Xem VB GNV</button>";
-    html+="<button class=\"khptm-emphasis\" onclick=\"openKHPTM2Transfer('khbuildReviewReturn')\">Chuyển</button>";
-  }else if(khptm2Role==='LĐ Ban KT'&&khptm2Step==='B2'){
+    html+="<button class=\"khptm-emphasis\" onclick=\"openKHPTM2Transfer('khbuildReviewRoute')\">Chuyển</button>";
+
+  }else if(khptm2DeviceType!=='Vô tuyến'&&khptm2Role==='LĐ Ban KT'&&khptm2Step==='B2'){
     html+="<button onclick=\"openKHPTM2Preview('submission')\">Xem Tờ trình</button>";
     html+="<button onclick=\"openKHPTM2Preview('draftDecision')\">Xem dự thảo QĐ Tập đoàn</button>";
     html+="<button class=\"khptm-danger\" onclick=\"khptm2ReturnSpecialist()\">Trả lại</button>";
     html+=khptm2UnitLeaderSigned?"<button class=\"khptm-emphasis\" onclick=\"openKHPTM2Transfer('khbuildSubmitLDTCT')\">Chuyển</button>":"<button class=\"khptm-emphasis\" onclick=\"khptm2SignUnitLeader()\">Ký số Tờ trình</button>";
-  }else if(khptm2Role==='LĐTCT'&&khptm2Step==='B3'){
+
+  }else if(khptm2DeviceType!=='Vô tuyến'&&khptm2Role==='LĐTCT'&&khptm2Step==='B3'){
     html+="<button onclick=\"openKHPTM2Preview('submission')\">Xem Tờ trình</button>";
     html+="<button onclick=\"openKHPTM2Preview('outgoing')\">Xem VB trình Tập đoàn</button>";
     html+="<button onclick=\"openKHPTM2Preview('draftDecision')\">Xem dự thảo QĐ Tập đoàn</button>";
     html+="<button class=\"khptm-danger\" onclick=\"khptm2ReturnSpecialist()\">Trả lại</button>";
     html+=khptm2LDTCTSigned?"<button class=\"khptm-emphasis\" onclick=\"openKHPTM2Transfer('khbuildToClerk')\">Chuyển</button>":"<button class=\"khptm-emphasis\" onclick=\"khptm2SignLDTCT()\">Ký số VB trình Tập đoàn</button>";
-  }else if(khptm2Role==='Văn thư'&&khptm2Step==='B4'){
+
+  }else if(khptm2DeviceType!=='Vô tuyến'&&khptm2Role==='Văn thư'&&khptm2Step==='B4'){
     html+="<button onclick=\"openKHPTM2Preview('outgoing')\">Xem văn bản đã ký</button>";
     html+="<button class=\"khptm-emphasis\" onclick=\"issueKHPTM2()\">Ban hành</button>";
-  }else if(khptm2Role==='Văn thư'&&khptm2Step==='DONE'){
+  }else if(khptm2DeviceType!=='Vô tuyến'&&khptm2Role==='Văn thư'&&khptm2Step==='DONE'){
     html+="<button onclick=\"openKHPTM2Preview('outgoing')\">Xem văn bản</button>";
-    html+="<button class=\"khptm-emphasis\" onclick=\"toast('Đã chuyển hồ sơ trình Tập đoàn qua eOffice (demo)')\">Chuyển Tập đoàn</button>";
   }
+
   h.innerHTML=html;
 }
 function renderKHPTM2Specialist(){
   var h=document.getElementById('khptm2PanelSpecialist');if(!h)return;
-  h.innerHTML=
+  var doneNote=(khptm2DeviceType==='Vô tuyến'&&khptm2Step==='BEND')
+    ? '<div class="khptm-output" style="margin-bottom:10px"><b>Bước 2 đã hoàn thành.</b> Hồ sơ KHPTM Vô tuyến đã đủ thông tin và được chuyển sang Bước 3 - Thông qua trình Tập đoàn.</div>'
+    : '';
+
+  h.innerHTML=doneNote+
     '<div class="section"><h3>Thông tin hồ sơ</h3><div class="body">'+
     '<div class="kh2-info-grid">'+
     '<div><label>Văn bản GNV <span class="req">*</span></label><select><option selected>812/VNPT Net-KT - GNV phối hợp XD KHPTM 2027</option></select></div>'+
@@ -1612,22 +1638,29 @@ function ensureKHPTM2Recipients(){
     {id:'kh2sp',name:'Chuyên viên Ban KT',title:'Đầu mối xây dựng KHPTM',unit:'Ban KT'},
     {id:'kh2lead',name:'LĐ Ban KT',title:'Lãnh đạo Ban Kỹ thuật',unit:'Ban KT'},
     {id:'kh2ktm',name:'Ban KTM',title:'Đơn vị cung cấp thông tin',unit:'VNPT Net'},
-    {id:'kh2ext',name:'VNPT TTP/VNP/IT',title:'Đơn vị cung cấp thông tin',unit:'Các đơn vị liên quan trong Tập đoàn'},
-    {id:'kh2netx',name:'Các NetX',title:'Thẩm định đề xuất phục vụ xây dựng KHPTM',unit:'Các đơn vị trực thuộc'}
+    {id:'kh2ext',name:khptm2DeviceType==='Vô tuyến'?'VNPT TTP/VNP':'VNPT TTP/VNP/IT',title:'Đơn vị cung cấp thông tin',unit:'Các đơn vị liên quan trong Tập đoàn'},
+    {id:'kh2netx',name:'Các NetX',title:'Thẩm định đề xuất/thông tin phục vụ xây dựng KHPTM',unit:'Các đơn vị trực thuộc'},
+    {id:'kh2step3',name:'Bước 3 - Thông qua trình Tập đoàn',title:'Kết thúc Bước 2, chuyển Bước 3',unit:'LĐTCT'}
   ];
-  extra.forEach(function(r){if(!routeRecipients.some(function(x){return x.id===r.id}))routeRecipients.push(r)});
+
+  extra.forEach(function(r){
+    var old=routeRecipients.find(function(x){return x.id===r.id});
+    if(old){old.name=r.name;old.title=r.title;old.unit=r.unit}
+    else routeRecipients.push(r);
+  });
 }
 function setKHPTM2RouteFiles(action){
   var tag=khptm2TypeTag();
   var sign=document.querySelector('#routeSignFileRow .route-file-name');
   var issue=document.querySelector('#routeIssueFileRow .route-file-name');
+
   if(action==='khbuildRoute'){
     if(sign)sign.textContent='VB_GNV_phoi_hop_XD_KHPTM_2027.pdf';
     if(issue)issue.textContent='KHPTM_'+tag+'_2027.xlsx';
   }else if(action==='khbuildInfoReturn'){
     if(sign)sign.textContent='Phan_hoi_cung_cap_thong_tin_'+tag+'_2027.pdf';
     if(issue)issue.textContent='KHPTM_'+tag+'_2027.xlsx';
-  }else if(action==='khbuildReviewReturn'){
+  }else if(action==='khbuildReviewRoute'){
     if(sign)sign.textContent='Ket_qua_tham_dinh_de_xuat_'+tag+'_2027.pdf';
     if(issue)issue.textContent='KHPTM_'+tag+'_2027.xlsx';
   }else if(action==='khbuildSubmitLDTCT'){
@@ -1637,29 +1670,62 @@ function setKHPTM2RouteFiles(action){
     if(sign)sign.textContent='VB_TCT_trinh_TD_phe_duyet_KHPTM_2027.pdf';
     if(issue)issue.textContent='Du_thao_QD_phe_duyet_KHPTM_2027.docx';
   }
+
   var note=document.getElementById('transferNote');
-  if(note)note.value=action==='khbuildRoute'?'Chọn đơn vị xử lý tiếp theo theo luồng '+khptm2DeviceType+'.':action==='khbuildInfoReturn'?'Đã phản hồi/cung cấp thông tin; chuyển lại Ban KT tiếp tục tổng hợp KHPTM.':action==='khbuildReviewReturn'?'Đã thẩm định đề xuất; chuyển lại Ban KT tiếp tục tổng hợp KHPTM.':action==='khbuildSubmitLDTCT'?'Chuyển LĐTCT thông qua và ký Văn bản TCT trình Tập đoàn.':'Chuyển Văn thư cấp số, phát hành hồ sơ trình Tập đoàn.';
+  if(!note)return;
+
+  if(action==='khbuildRoute'&&khptm2DeviceType==='Vô tuyến'){
+    note.value=khptm2RadioNetXReviewed
+      ? 'Ban KT có thể yêu cầu VNPT TTP/VNP, Ban KTM hoặc NetX làm rõ thêm; nếu hồ sơ đã đủ thì chuyển sang Bước 3.'
+      : 'Ban KT yêu cầu các nhánh 2.1/2.2 cung cấp thông tin; khi đủ hai nguồn thì chuyển NetX thẩm định.';
+  }else if(action==='khbuildRoute'){
+    note.value='Chọn đơn vị xử lý tiếp theo theo luồng '+khptm2DeviceType+'.';
+  }else if(action==='khbuildInfoReturn'){
+    note.value=khptm2ProviderReturnTo==='NetX'
+      ? 'Bổ sung/chỉnh sửa thông tin theo yêu cầu của NetX; chuyển lại NetX thẩm định tiếp.'
+      : 'Phản hồi thông tin theo yêu cầu; chuyển về đầu mối tiếp tục xử lý hồ sơ.';
+  }else if(action==='khbuildReviewRoute'){
+    note.value='NetX có thể yêu cầu VNPT TTP/VNP hoặc Ban KTM bổ sung/chỉnh sửa; nếu đủ thì chuyển kết quả đã kiểm tra cho Ban KT.';
+  }else if(action==='khbuildSubmitLDTCT'){
+    note.value='Chuyển LĐTCT thông qua và ký Văn bản TCT trình Tập đoàn.';
+  }else{
+    note.value='Chuyển Văn thư cấp số, phát hành hồ sơ trình Tập đoàn.';
+  }
 }
 function openKHPTM2Transfer(action){
   ensureKHPTM2Recipients();pendingTransferAction=action;
+
   var routeAllowed=['kh2lead','kh2ktm','kh2ext'];
+
   if(khptm2DeviceType==='Vô tuyến'){
-    routeAllowed=[];
-    if(!khptm2RadioProvided.ext)routeAllowed.push('kh2ext');
-    if(!khptm2RadioProvided.ktm)routeAllowed.push('kh2ktm');
-    if(khptm2RadioProvided.ext&&khptm2RadioProvided.ktm&&!khptm2RadioNetXReviewed)routeAllowed.push('kh2netx');
-    if(khptm2RadioNetXReviewed)routeAllowed.push('kh2lead');
+    routeAllowed=['kh2ext','kh2ktm'];
+
+    if(khptm2RadioProvided.ext&&khptm2RadioProvided.ktm){
+      routeAllowed.push('kh2netx');
+    }
+
+    if(khptm2RadioNetXReviewed){
+      routeAllowed.push('kh2step3');
+    }
   }
+
+  var providerReturnAllowed=khptm2ProviderReturnTo==='NetX'?['kh2netx']:['kh2sp'];
+  var providerReturnMain=khptm2ProviderReturnTo==='NetX'?'Các NetX':'Chuyên viên Ban KT';
+
   var cfg={
     khbuildRoute:{main:'',co:[],send:[],allowed:routeAllowed},
-    khbuildInfoReturn:{main:'Chuyên viên Ban KT',co:[],send:[],allowed:['kh2sp']},
-    khbuildReviewReturn:{main:'Chuyên viên Ban KT',co:[],send:[],allowed:['kh2sp']},
+    khbuildInfoReturn:{main:providerReturnMain,co:[],send:[],allowed:providerReturnAllowed},
+    khbuildReviewRoute:{main:'',co:[],send:[],allowed:['kh2ext','kh2ktm','kh2sp']},
     khbuildSubmitLDTCT:{main:'Nguyễn Việt Tiến - LĐTCT',co:[],send:[],allowed:['ldtct']},
     khbuildToClerk:{main:'Phùng Thị Liên - Văn thư',co:[],send:[],allowed:['clerk']}
   };
+
   currentTransferCfg=cfg[action]||cfg.khbuildRoute;
   var search=document.getElementById('routeReceiverSearch');if(search)search.value='';
-  renderRouteRecipients();switchRouteTab('files');setKHPTM2RouteFiles(action);document.getElementById('transferModal').classList.add('show');
+  renderRouteRecipients();
+  switchRouteTab('files');
+  setKHPTM2RouteFiles(action);
+  document.getElementById('transferModal').classList.add('show');
 }
 function khptm2SubmitLeader(){khptm2Log('Chuyên viên Ban KT','Trình hồ sơ KHPTM Core tới LĐ Ban KT');khptm2Step='B2';khptm2Role='LĐ Ban KT';renderKHPTMBuild();window.scrollTo({top:0,behavior:'smooth'})}
 function khptm2SignUnitLeader(){if(khptm2Step!=='B2'||khptm2Role!=='LĐ Ban KT')return toast('Hồ sơ không ở bước LĐ Ban KT');khptm2UnitLeaderSigned=true;khptm2Log('LĐ Ban KT','Đã ký số Tờ trình LĐ TCT phê duyệt KH PTM');renderKHPTMBuild();toast('Đã ký số Tờ trình')}
@@ -1840,56 +1906,176 @@ routeKeyFromName=function(s){
   if(s==='LĐ Ban KT'||s.includes('Lãnh đạo Ban Kỹ thuật'))return'kh2lead';
   if(s==='Chuyên viên Ban KT'||s.includes('Đầu mối xây dựng KHPTM'))return'kh2sp';
   if(s==='Ban KTM'&&s.includes('Ban KTM'))return'kh2ktm';
-  if(s.includes('VNPT TTP/VNP/IT'))return'kh2ext';
-  if(s==='Các NetX'||s.includes('Thẩm định đề xuất phục vụ xây dựng KHPTM'))return'kh2netx';
+  if(s.includes('VNPT TTP/VNP'))return'kh2ext';
+  if(s==='Các NetX'||s.includes('Thẩm định đề xuất'))return'kh2netx';
+  if(s.includes('Bước 3 - Thông qua trình Tập đoàn')||s.includes('Kết thúc Bước 2'))return'kh2step3';
   return _routeKeyFromNameKHBUILD(s);
 };
 const _confirmTransferKHBUILD=confirmTransfer;
 confirmTransfer=function(){
   if(!String(pendingTransferAction||'').startsWith('khbuild'))return _confirmTransferKHBUILD();
-  var sel=selectedRouteRecipients();if(!sel.main){switchRouteTab('receiver');return toast('Chọn 01 người xử lý chính')}
+
+  var sel=selectedRouteRecipients();
+  if(!sel.main){switchRouteTab('receiver');return toast('Chọn 01 người xử lý chính')}
+
   var note=(document.getElementById('transferNote')?document.getElementById('transferNote').value:'').trim();
   hideTransferModal();
 
   if(pendingTransferAction==='khbuildRoute'){
-    if(sel.main.id==='kh2lead'){
-      if(khptm2DeviceType==='Vô tuyến'&&!khptm2RadioNetXReviewed){
-        pendingTransferAction='';renderKHPTMBuild();document.getElementById('khptm-build-process').classList.add('active');return toast('Luồng Vô tuyến cần hoàn thành cung cấp thông tin và NetX thẩm định trước khi trình LĐ Ban KT');
-      }
-      khptm2Log('Chuyên viên Ban KT','Trình hồ sơ KHPTM '+khptm2DeviceType+' tới LĐ Ban KT'+(note?' · '+note:''));
-      khptm2Step='B2';khptm2Role='LĐ Ban KT';
-    }else if(sel.main.id==='kh2ktm'||sel.main.id==='kh2ext'){
-      khptm2ProviderUnit=sel.main.name;
-      khptm2Log('Chuyên viên Ban KT','Chuyển nhiệm vụ cung cấp thông tin tới '+sel.main.name+(note?' · '+note:''));
-      khptm2Step='BINFO';khptm2Role='Đơn vị cung cấp thông tin';
-    }else if(sel.main.id==='kh2netx'&&khptm2DeviceType==='Vô tuyến'){
-      khptm2Log('Chuyên viên Ban KT','Chuyển các đề xuất/thông tin tới NetX thẩm định'+(note?' · '+note:''));
-      khptm2Step='BREVIEW';khptm2Role='NetX thẩm định';
-    }else{
-      pendingTransferAction='';renderKHPTMBuild();document.getElementById('khptm-build-process').classList.add('active');return toast('Chọn đúng đối tượng xử lý theo luồng');
-    }
-  }else if(pendingTransferAction==='khbuildInfoReturn'){
+
     if(khptm2DeviceType==='Vô tuyến'){
-      if(khptm2ProviderUnit==='Ban KTM')khptm2RadioProvided.ktm=true;
-      if(khptm2ProviderUnit==='VNPT TTP/VNP/IT')khptm2RadioProvided.ext=true;
+
+      if(sel.main.id==='kh2ext'||sel.main.id==='kh2ktm'){
+        khptm2ProviderUnit=sel.main.name;
+        khptm2ProviderReturnTo='Ban KT';
+
+        // If Ban KT re-opens a source branch after NetX already reviewed,
+        // the reviewed result becomes stale and must be reviewed again.
+        if(khptm2RadioNetXReviewed)khptm2RadioNetXReviewed=false;
+
+        khptm2Log(
+          'Chuyên viên Ban KT',
+          'Yêu cầu '+sel.main.name+' cung cấp/bổ sung thông tin phục vụ xây dựng KHPTM Vô tuyến'+(note?' · '+note:'')
+        );
+        khptm2Step='BINFO';
+        khptm2Role='Đơn vị cung cấp thông tin';
+
+      }else if(sel.main.id==='kh2netx'){
+        if(!khptm2RadioProvided.ext||!khptm2RadioProvided.ktm){
+          pendingTransferAction='';
+          renderKHPTMBuild();
+          document.getElementById('khptm-build-process').classList.add('active');
+          return toast('Cần có thông tin của VNPT TTP/VNP và Ban KTM trước khi chuyển NetX thẩm định');
+        }
+
+        khptm2RadioNetXReviewed=false;
+        khptm2Log(
+          'Chuyên viên Ban KT',
+          'Chuyển thông tin/đề xuất của VNPT TTP/VNP và Ban KTM tới NetX thẩm định'+(note?' · '+note:'')
+        );
+        khptm2Step='BREVIEW';
+        khptm2Role='NetX thẩm định';
+
+      }else if(sel.main.id==='kh2step3'){
+        if(!khptm2RadioNetXReviewed){
+          pendingTransferAction='';
+          renderKHPTMBuild();
+          document.getElementById('khptm-build-process').classList.add('active');
+          return toast('Cần có kết quả NetX thẩm định trước khi kết thúc Bước 2');
+        }
+
+        khptm2Log(
+          'Chuyên viên Ban KT',
+          'Hoàn thiện KHPTM Vô tuyến; kết thúc Bước 2 và chuyển sang Bước 3 - Thông qua trình Tập đoàn'+(note?' · '+note:'')
+        );
+        khptm2Step='BEND';
+        khptm2Role='Chuyên viên Ban KT';
+
+      }else{
+        pendingTransferAction='';
+        renderKHPTMBuild();
+        document.getElementById('khptm-build-process').classList.add('active');
+        return toast('Chọn đúng nhánh xử lý của Bước 2 Vô tuyến');
+      }
+
+    }else{
+      if(sel.main.id==='kh2lead'){
+        khptm2Log('Chuyên viên Ban KT','Trình hồ sơ KHPTM '+khptm2DeviceType+' tới LĐ Ban KT'+(note?' · '+note:''));
+        khptm2Step='B2';khptm2Role='LĐ Ban KT';
+      }else if(sel.main.id==='kh2ktm'||sel.main.id==='kh2ext'){
+        khptm2ProviderUnit=sel.main.name;
+        khptm2ProviderReturnTo='Ban KT';
+        khptm2Log('Chuyên viên Ban KT','Chuyển nhiệm vụ cung cấp thông tin tới '+sel.main.name+(note?' · '+note:''));
+        khptm2Step='BINFO';khptm2Role='Đơn vị cung cấp thông tin';
+      }else{
+        pendingTransferAction='';renderKHPTMBuild();document.getElementById('khptm-build-process').classList.add('active');
+        return toast('Chọn đúng đối tượng xử lý theo luồng');
+      }
     }
-    khptm2Log('Đơn vị cung cấp thông tin','Đã phản hồi và chuyển lại Ban KT tiếp tục tổng hợp KHPTM'+(note?' · '+note:''));
-    khptm2Step='B1';khptm2Role='Chuyên viên Ban KT';
-  }else if(pendingTransferAction==='khbuildReviewReturn'){
-    khptm2RadioNetXReviewed=true;
-    khptm2Log('NetX','Đã thẩm định đề xuất của VNPT TTP/Ban KTM và chuyển kết quả về Ban KT'+(note?' · '+note:''));
-    khptm2Step='B1';khptm2Role='Chuyên viên Ban KT';
+
+  }else if(pendingTransferAction==='khbuildInfoReturn'){
+
+    if(khptm2DeviceType==='Vô tuyến'){
+      var isExt=String(khptm2ProviderUnit).indexOf('VNPT TTP/VNP')===0;
+
+      if(khptm2ProviderUnit==='Ban KTM')khptm2RadioProvided.ktm=true;
+      if(isExt)khptm2RadioProvided.ext=true;
+
+      if(khptm2ProviderReturnTo==='NetX'){
+        khptm2Log(
+          'Đơn vị cung cấp thông tin',
+          khptm2ProviderUnit+' đã bổ sung/chỉnh sửa thông tin và chuyển lại NetX thẩm định'+(note?' · '+note:'')
+        );
+        khptm2Step='BREVIEW';
+        khptm2Role='NetX thẩm định';
+      }else{
+        var destText=isExt
+          ? 'Thông tin được ghi nhận cho cả Ban KT và NetX.'
+          : 'Thông tin được ghi nhận là đầu vào cho NetX thẩm định.';
+        khptm2Log(
+          'Đơn vị cung cấp thông tin',
+          khptm2ProviderUnit+' đã cung cấp thông tin. '+destText+(note?' · '+note:'')
+        );
+        khptm2Step='B1';
+        khptm2Role='Chuyên viên Ban KT';
+      }
+
+      khptm2ProviderReturnTo='Ban KT';
+
+    }else{
+      khptm2Log('Đơn vị cung cấp thông tin','Đã phản hồi và chuyển lại Ban KT tiếp tục tổng hợp KHPTM'+(note?' · '+note:''));
+      khptm2Step='B1';khptm2Role='Chuyên viên Ban KT';
+    }
+
+  }else if(pendingTransferAction==='khbuildReviewRoute'){
+
+    if(sel.main.id==='kh2ext'||sel.main.id==='kh2ktm'){
+      khptm2ProviderUnit=sel.main.name;
+      khptm2ProviderReturnTo='NetX';
+      khptm2Log(
+        'NetX',
+        'Yêu cầu '+sel.main.name+' bổ sung/chỉnh sửa/làm rõ thông tin để tiếp tục thẩm định'+(note?' · '+note:'')
+      );
+      khptm2Step='BINFO';
+      khptm2Role='Đơn vị cung cấp thông tin';
+
+    }else if(sel.main.id==='kh2sp'){
+      khptm2RadioNetXReviewed=true;
+      khptm2Log(
+        'NetX',
+        'Hoàn thành rà soát/thẩm định đề xuất của VNPT TTP/VNP và Ban KTM; chuyển kết quả/thông tin đã kiểm tra cho Ban KT'+(note?' · '+note:'')
+      );
+      khptm2Step='B1';
+      khptm2Role='Chuyên viên Ban KT';
+
+    }else{
+      pendingTransferAction='';
+      renderKHPTMBuild();
+      document.getElementById('khptm-build-process').classList.add('active');
+      return toast('NetX chọn đơn vị cần bổ sung hoặc chuyển kết quả về Ban KT');
+    }
+
   }else if(pendingTransferAction==='khbuildSubmitLDTCT'){
-    if(!khptm2UnitLeaderSigned){pendingTransferAction='';renderKHPTMBuild();document.getElementById('khptm-build-process').classList.add('active');return toast('LĐ Ban KT cần ký số Tờ trình trước khi chuyển LĐTCT')}
+    if(!khptm2UnitLeaderSigned){
+      pendingTransferAction='';renderKHPTMBuild();document.getElementById('khptm-build-process').classList.add('active');
+      return toast('LĐ Ban KT cần ký số Tờ trình trước khi chuyển LĐTCT');
+    }
     khptm2Log('LĐ Ban KT','Chuyển hồ sơ LĐTCT thông qua trình Tập đoàn'+(note?' · '+note:''));
     khptm2Step='B3';khptm2Role='LĐTCT';
+
   }else if(pendingTransferAction==='khbuildToClerk'){
-    if(!khptm2LDTCTSigned){pendingTransferAction='';renderKHPTMBuild();document.getElementById('khptm-build-process').classList.add('active');return toast('LĐTCT cần ký số Văn bản trình Tập đoàn trước khi chuyển Văn thư')}
+    if(!khptm2LDTCTSigned){
+      pendingTransferAction='';renderKHPTMBuild();document.getElementById('khptm-build-process').classList.add('active');
+      return toast('LĐTCT cần ký số Văn bản trình Tập đoàn trước khi chuyển Văn thư');
+    }
     khptm2Log('LĐTCT','Chuyển Văn thư cấp số, phát hành hồ sơ trình Tập đoàn'+(note?' · '+note:''));
     khptm2Step='B4';khptm2Role='Văn thư';
   }
 
-  pendingTransferAction='';renderKHPTMBuild();document.getElementById('khptm-build-process').classList.add('active');window.scrollTo({top:0,behavior:'smooth'});
+  pendingTransferAction='';
+  renderKHPTMBuild();
+  document.getElementById('khptm-build-process').classList.add('active');
+  window.scrollTo({top:0,behavior:'smooth'});
 };
 
 renderFields();renderTemplatePreview();renderSharedVars();renderDetailFields();renderTemplateDetailPreview();updateAppliedFilesUI();renderTeamTemplateFields();syncRoleHeader();goHome();
