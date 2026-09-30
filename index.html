@@ -1738,9 +1738,8 @@ function openKHPTM2Transfer(action){
     return;
   }
 
-  var routeAllowed=['kh2ext','kh2ktm'];
+  var routeAllowed=['kh2ext','kh2ktm','kh2lead'];
   if(khptm2RadioProvided.ext&&khptm2RadioProvided.ktm)routeAllowed.push('kh2netx');
-  if(khptm2RadioNetXReviewed)routeAllowed.push('kh2lead');
 
   // Vô tuyến: sau khi cung cấp thông tin, đơn vị có thể chuyển
   // về Ban KT hoặc chuyển trực tiếp NetX thẩm định.
@@ -2028,11 +2027,6 @@ confirmTransfer=function(){
       khptm2Role='NetX thẩm định';
 
     }else if(sel.main.id==='kh2lead'){
-      if(!khptm2RadioNetXReviewed){
-        pendingTransferAction='';renderKHPTMBuild();document.getElementById('khptm-build-process').classList.add('active');
-        return toast('Cần có kết quả NetX thẩm định trước khi chuyển sang Bước 3');
-      }
-
       khptm2Log(
         'Chuyên viên Ban KT',
         'Hoàn thiện KHPTM Vô tuyến và chuyển LĐ Ban KT thực hiện Bước 3 - Thông qua trình Tập đoàn'+(note?' · '+note:'')
