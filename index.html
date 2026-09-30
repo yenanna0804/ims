@@ -1364,7 +1364,7 @@ function renderKHPTM2Specialist(){
     '<div><label>Năm kế hoạch</label><select><option selected>2027</option></select></div>'+
     '<div><label>Hạn trình KHPTM</label><input type="date" value="2026-12-05" readonly></div>'+
     '</div></div></div>'+
-    '<div class="section"><h3>Hồ sơ KHPTM</h3><div class="body"><div class="kh2-source-card"><div class="k">Nội dung/Phụ lục KHPTM</div><div class="v">Cần khảo sát khách hàng</div></div></div></div>';
+    '<div class="section"><h3>Chi tiết hồ sơ KHPTM</h3><div class="body"><div class="kh2-source-card"><div class="k">Nội dung/Phụ lục KHPTM</div><div class="v">Cần khảo sát khách hàng</div></div></div></div>';
 }
 function khptm2RequestRow(code,unit,deadline){
   var r=khptm2Requests[code];var done=r.status!=='Chưa tạo';
@@ -1386,13 +1386,7 @@ function khptm2LeaderPreviewHtml(role){
 }
 function renderKHPTM2Provider(){
   var h=document.getElementById('khptm2PanelProvider');if(!h)return;
-  var deadline=khptm2ProviderUnit==='Ban KTM'?'06/11/2026':'20/10/2026';
-  h.innerHTML='<div class="section"><h3>Danh sách công việc được giao</h3><div class="body">'+
-    '<table><thead><tr><th width="45">STT</th><th>Công việc</th><th width="220">Đơn vị giao</th><th width="130">Hạn xử lý</th><th width="135">Trạng thái</th><th width="90">Thao tác</th></tr></thead><tbody>'+
-    '<tr><td class="center">1</td><td><b>Cung cấp thông tin phục vụ xây dựng KHPTM Core di động năm 2027</b><div class="mini">Hồ sơ nguồn: 812/VNPT Net-KT - GNV phối hợp XD KHPTM 2027</div></td><td>Ban KT</td><td class="center">'+deadline+'</td><td><span class="badge borange">Chờ phản hồi</span></td><td class="center"><button class="small" onclick="openKHPTM2ExchangeTab()">Mở</button></td></tr>'+
-    '</tbody></table>'+
-    '<div class="khptm-note" style="margin-top:10px"><b>Đơn vị đang xử lý:</b> '+khptm2ProviderUnit+'. Phản hồi nội dung và file tại tab <b>Lịch sử trao đổi</b> bên dưới.</div>'+
-    '</div></div>';
+  h.innerHTML='';
 }
 function renderKHPTM2UnitLeader(){var h=document.getElementById('khptm2PanelUnitLeader');if(h)h.innerHTML=khptm2LeaderPreviewHtml('LĐ Ban KT')}
 function renderKHPTM2LDTCT(){var h=document.getElementById('khptm2PanelLDTCT');if(h)h.innerHTML=khptm2LeaderPreviewHtml('LĐTCT')}
