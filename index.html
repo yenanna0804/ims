@@ -1322,18 +1322,18 @@ function renderKHPTM2TopActions(){
     html+="<button onclick=\"toast('Đã lưu nháp hồ sơ KHPTM Core')\">Lưu nháp</button>";
     html+="<button onclick=\"openKHPTM2Preview('submission')\">Xem Tờ trình</button>";
     html+="<button onclick=\"openKHPTM2Preview('draftDecision')\">Xem dự thảo QĐ Tập đoàn</button>";
-    html+="<button class=\"kh2-emphasis\" onclick=\"khptm2SubmitLeader()\">Chuyển</button>";
+    html+="<button class=\"kh2-emphasis\" onclick=\"openKHPTM2Transfer('khbuildSubmitLeader')\">Chuyển</button>";
   }else if(khptm2Role==='LĐ Ban KT'&&khptm2Step==='B2'){
     html+="<button onclick=\"openKHPTM2Preview('submission')\">Xem Tờ trình</button>";
     html+="<button onclick=\"openKHPTM2Preview('draftDecision')\">Xem dự thảo QĐ Tập đoàn</button>";
     html+="<button class=\"kh2-danger\" onclick=\"khptm2ReturnSpecialist()\">Trả lại</button>";
-    html+=khptm2UnitLeaderSigned?"<button class=\"kh2-emphasis\" onclick=\"khptm2SubmitLDTCT()\">Chuyển</button>":"<button class=\"kh2-emphasis\" onclick=\"khptm2SignUnitLeader()\">Ký số Tờ trình</button>";
+    html+=khptm2UnitLeaderSigned?"<button class=\"kh2-emphasis\" onclick=\"openKHPTM2Transfer('khbuildSubmitLDTCT')\">Chuyển</button>":"<button class=\"kh2-emphasis\" onclick=\"khptm2SignUnitLeader()\">Ký số Tờ trình</button>";
   }else if(khptm2Role==='LĐTCT'&&khptm2Step==='B3'){
     html+="<button onclick=\"openKHPTM2Preview('submission')\">Xem Tờ trình</button>";
     html+="<button onclick=\"openKHPTM2Preview('outgoing')\">Xem VB trình Tập đoàn</button>";
     html+="<button onclick=\"openKHPTM2Preview('draftDecision')\">Xem dự thảo QĐ Tập đoàn</button>";
     html+="<button class=\"kh2-danger\" onclick=\"khptm2ReturnSpecialist()\">Trả lại</button>";
-    html+=khptm2LDTCTSigned?"<button class=\"kh2-emphasis\" onclick=\"khptm2ToClerk()\">Chuyển</button>":"<button class=\"kh2-emphasis\" onclick=\"khptm2SignLDTCT()\">Ký số VB trình Tập đoàn</button>";
+    html+=khptm2LDTCTSigned?"<button class=\"kh2-emphasis\" onclick=\"openKHPTM2Transfer('khbuildToClerk')\">Chuyển</button>":"<button class=\"kh2-emphasis\" onclick=\"khptm2SignLDTCT()\">Ký số VB trình Tập đoàn</button>";
   }else if(khptm2Role==='Văn thư'&&khptm2Step==='B4'){
     html+="<button onclick=\"openKHPTM2Preview('outgoing')\">Xem văn bản đã ký</button>";
     html+="<button class=\"kh2-emphasis\" onclick=\"issueKHPTM2()\">Ban hành</button>";
@@ -1459,6 +1459,32 @@ function openKHPTM2Preview(type){
   if(type==='draftDecision'){title.textContent='Dự thảo Quyết định phê duyệt KH PTM hàng năm của Tập đoàn';paper.innerHTML='<div style="text-align:center"><b>TẬP ĐOÀN BƯU CHÍNH VIỄN THÔNG VIỆT NAM</b></div><h2>QUYẾT ĐỊNH</h2><h3>Phê duyệt Kế hoạch phát triển mạng năm 2027</h3><div class="kh2-paper-placeholder">Source xác nhận tên chứng từ nhưng chưa có mẫu Quyết định. Vì vậy phần nội dung và các Điều/Phụ lục chưa được dựng giả.</div>'}
   if(type==='outgoing'){title.textContent='Văn bản TCT trình Tập đoàn xin phê duyệt KH PTM hàng năm';paper.innerHTML='<div style="text-align:center"><b>TỔNG CÔNG TY HẠ TẦNG MẠNG - VNPT NET</b></div><p>Số: .../VNPT Net-KT</p><h2>VĂN BẢN TRÌNH TẬP ĐOÀN</h2><h3>V/v trình phê duyệt Kế hoạch phát triển mạng Core di động năm 2027</h3><div class="kh2-paper-placeholder">Source chưa có mẫu chính thức của văn bản này. Demo chỉ thể hiện vị trí xem trước văn bản trình ký.</div><div class="sign"><b>LÃNH ĐẠO TỔNG CÔNG TY</b><br><br><br>'+(khptm2LDTCTSigned?'(Đã ký số)':'(Chờ ký)')+'</div>'}
   document.getElementById('khptmPreviewModal').classList.add('show');
+}
+function ensureKHPTM2Recipients(){
+  if(!routeRecipients.some(function(x){return x.id==='kh2lead'}))routeRecipients.push({id:'kh2lead',name:'LĐ Ban KT',title:'Lãnh đạo Ban Kỹ thuật',unit:'Ban KT'});
+}
+function setKHPTM2RouteFiles(action){
+  var sign=document.querySelector('#routeSignFileRow .route-file-name');
+  var issue=document.querySelector('#routeIssueFileRow .route-file-name');
+  if(action==='khbuildSubmitLeader'){
+    if(sign)sign.textContent='To_trinh_LDTCT_phe_duyet_KHPTM_Core_2027.docx';
+    if(issue)issue.textContent='Du_thao_QD_phe_duyet_KHPTM_2027.docx';
+  }else{
+    if(sign)sign.textContent='VB_TCT_trinh_TD_phe_duyet_KHPTM_2027.docx';
+    if(issue)issue.textContent='Du_thao_QD_phe_duyet_KHPTM_2027.docx';
+  }
+  var note=document.getElementById('transferNote');
+  if(note)note.value=action==='khbuildSubmitLeader'?'Trình LĐ Ban KT xem xét, ký Tờ trình.':action==='khbuildSubmitLDTCT'?'Chuyển LĐTCT thông qua và ký Văn bản TCT trình Tập đoàn.':'Chuyển Văn thư cấp số, phát hành hồ sơ trình Tập đoàn.';
+}
+function openKHPTM2Transfer(action){
+  ensureKHPTM2Recipients();pendingTransferAction=action;
+  var cfg={
+    khbuildSubmitLeader:{main:'LĐ Ban KT',co:[],send:[]},
+    khbuildSubmitLDTCT:{main:'Nguyễn Việt Tiến - LĐTCT',co:[],send:[]},
+    khbuildToClerk:{main:'Phùng Thị Liên - Văn thư',co:[],send:[]}
+  };
+  currentTransferCfg=cfg[action]||cfg.khbuildSubmitLeader;
+  renderRouteRecipients();switchRouteTab('files');setKHPTM2RouteFiles(action);document.getElementById('transferModal').classList.add('show');
 }
 function khptm2SubmitLeader(){khptm2Log('Chuyên viên Ban KT','Trình hồ sơ KHPTM Core tới LĐ Ban KT');khptm2Step='B2';khptm2Role='LĐ Ban KT';renderKHPTMBuild();window.scrollTo({top:0,behavior:'smooth'})}
 function khptm2SignUnitLeader(){if(khptm2Step!=='B2'||khptm2Role!=='LĐ Ban KT')return toast('Hồ sơ không ở bước LĐ Ban KT');khptm2UnitLeaderSigned=true;khptm2Log('LĐ Ban KT','Đã ký số Tờ trình LĐ TCT phê duyệt KH PTM');renderKHPTMBuild();toast('Đã ký số Tờ trình')}
@@ -1631,6 +1657,34 @@ function khptmReturnToSpecialist(){khptmLog(khptmRole,'Trả lại Chuyên viên
 function khptmSignByLDTCT(){khptmSigned=true;khptmLog('LĐTCT','Ký số Văn bản GNV phối hợp XD KHPTM của TCT');renderKHPTM();toast('Đã ký số Văn bản GNV (demo)')}
 function issueKHPTM(){khptmIssue.number=(document.getElementById('khptmIssueNumber')?.value||'').trim();khptmIssue.suffix=(document.getElementById('khptmIssueSuffix')?.value||'KT').trim();khptmIssue.date=document.getElementById('khptmIssueDate')?.value||'';khptmIssue.eoffice=(document.getElementById('khptmIssueEoffice')?.value||'').trim();if(!khptmIssue.number||!khptmIssue.date)return toast('Nhập Số văn bản và Ngày ban hành');khptmLog('Văn thư',`Cấp số, ngày, eOffice và ban hành Văn bản ${khptmIssue.number}/VNPT Net-${khptmIssue.suffix}`);khptmStep='DONE';khptmRole='Văn thư';renderKHPTM();toast('Đã ban hành Văn bản GNV phối hợp XD KHPTM')}
 
+
+
+const _routeKeyFromNameKHBUILD=routeKeyFromName;
+routeKeyFromName=function(s){
+  s=s||'';
+  if(s==='LĐ Ban KT'||s.includes('Lãnh đạo Ban Kỹ thuật'))return'kh2lead';
+  return _routeKeyFromNameKHBUILD(s);
+};
+const _confirmTransferKHBUILD=confirmTransfer;
+confirmTransfer=function(){
+  if(!String(pendingTransferAction||'').startsWith('khbuild'))return _confirmTransferKHBUILD();
+  var sel=selectedRouteRecipients();if(!sel.main){switchRouteTab('receiver');return toast('Chọn 01 người xử lý chính')}
+  var note=(document.getElementById('transferNote')?document.getElementById('transferNote').value:'').trim();
+  hideTransferModal();
+  if(pendingTransferAction==='khbuildSubmitLeader'){
+    khptm2Log('Chuyên viên Ban KT','Trình hồ sơ KHPTM Core tới LĐ Ban KT'+(note?' · '+note:''));
+    khptm2Step='B2';khptm2Role='LĐ Ban KT';
+  }else if(pendingTransferAction==='khbuildSubmitLDTCT'){
+    if(!khptm2UnitLeaderSigned){pendingTransferAction='';renderKHPTMBuild();document.getElementById('khptm-build-process').classList.add('active');return toast('LĐ Ban KT cần ký số Tờ trình trước khi chuyển LĐTCT')}
+    khptm2Log('LĐ Ban KT','Chuyển hồ sơ LĐTCT thông qua trình Tập đoàn'+(note?' · '+note:''));
+    khptm2Step='B3';khptm2Role='LĐTCT';
+  }else if(pendingTransferAction==='khbuildToClerk'){
+    if(!khptm2LDTCTSigned){pendingTransferAction='';renderKHPTMBuild();document.getElementById('khptm-build-process').classList.add('active');return toast('LĐTCT cần ký số Văn bản trình Tập đoàn trước khi chuyển Văn thư')}
+    khptm2Log('LĐTCT','Chuyển Văn thư cấp số, phát hành hồ sơ trình Tập đoàn'+(note?' · '+note:''));
+    khptm2Step='B4';khptm2Role='Văn thư';
+  }
+  pendingTransferAction='';renderKHPTMBuild();document.getElementById('khptm-build-process').classList.add('active');window.scrollTo({top:0,behavior:'smooth'});
+};
 
 renderFields();renderTemplatePreview();renderSharedVars();renderDetailFields();renderTemplateDetailPreview();updateAppliedFilesUI();renderTeamTemplateFields();syncRoleHeader();goHome();
 if(document.getElementById("team-create").classList.contains("active"))renderFlowDemo();
