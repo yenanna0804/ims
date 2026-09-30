@@ -653,7 +653,7 @@
       <div class="route-opinion-summary"><div><b>Tổng hợp ý kiến</b></div><div class="route-opinion-row"><b>Nguyễn Văn Q - LĐ Đơn vị được GNV</b><div class="mini">Đồng ý nội dung hồ sơ, chuyển xử lý theo luồng.</div></div><div class="route-opinion-row"><b>Trần Văn B - PM dự án</b><div class="mini">Đã hoàn thiện Đề nghị và dự thảo Quyết định theo Template SOP2-TB-03.</div></div></div>
     </div>
   </div>
-  <div class="route-footer"><button onclick="confirmTransfer()">Chuyển</button><button onclick="hideTransferModal()">✕ Đóng</button></div>
+  <div class="route-footer"><button onclick="confirmTransferFromModal()">Chuyển</button><button onclick="hideTransferModal()">✕ Đóng</button></div>
 </div></div>
 
 <div id="transferPreviewModal" class="modal"><div class="route-preview-box"><div class="route-modal-head"><span>XEM FILE ĐÍNH KÈM</span><button class="route-close" onclick="closeTransferPreview()">×</button></div><div style="padding:12px 18px;border-bottom:1px solid #d6dee5;display:flex;align-items:center;justify-content:space-between"><div><b id="transferPreviewTitle" style="color:#164caf">De_nghi_thanh_lap_To_trien_khai_du_an.docx</b><div class="mini">1.2 MB &nbsp;|&nbsp; DOCX/PDF &nbsp;|&nbsp; Người gửi: PM dự án</div></div><button class="route-blue-btn" onclick="toast('Đã tải file')">⬇ Tải xuống</button></div><div class="route-preview-toolbar">☰ &nbsp; 1 / 2 &nbsp; − &nbsp; 100% &nbsp; ＋ &nbsp; ⤢ &nbsp; ⬇ &nbsp; 🖨</div><div class="route-preview-body"><div class="route-preview-thumbs"><div class="route-thumb">Trang 1<br><br>QUYẾT ĐỊNH<br>THÀNH LẬP TỔ TRIỂN KHAI DỰ ÁN</div><div class="route-thumb" style="border-color:#8f99a3">Trang 2<br><br>DANH SÁCH THÀNH VIÊN</div></div><div class="route-preview-paper"><div class="twocol"><div>TẬP ĐOÀN<br>BƯU CHÍNH VIỄN THÔNG VIỆT NAM</div><div>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM<br><u>Độc lập - Tự do - Hạnh phúc</u></div></div><p>Số: .../QĐ-VNPT Net</p><h2>QUYẾT ĐỊNH</h2><h3 style="text-align:center">Về việc thành lập Tổ triển khai dự án</h3><p>Căn cứ các quy định hiện hành của Tổng công ty Hạ tầng mạng;</p><p>Căn cứ Văn bản giao nhiệm vụ lập CTĐT/KHMSTT/DAĐT;</p><p><b>Điều 1.</b> Thành lập Tổ triển khai dự án “Triển khai mở rộng hạ tầng truyền dẫn khu vực miền Bắc”.</p><p><b>Điều 2.</b> Tổ triển khai dự án thực hiện nhiệm vụ, quyền hạn theo quy định.</p><p><b>Điều 3.</b> Quyết định có hiệu lực kể từ ngày ký.</p></div></div><div class="route-footer"><button onclick="closeTransferPreview()">✕ Đóng</button></div></div></div>
@@ -2139,6 +2139,48 @@ confirmTransfer=function(){
   document.getElementById('khptm-build-process').classList.add('active');
   window.scrollTo({top:0,behavior:'smooth'});
 };
+
+function confirmTransferFromModal(){
+  var action=String(pendingTransferAction||'');
+
+  // Fix riêng luồng Vô tuyến: NetX hoàn tất thẩm định -> Chuyên viên Ban KT.
+  // Xử lý trực tiếp để chắc chắn đóng popup và chuyển đúng context màn hình.
+  if(
+    action==='khbuildReviewRoute' &&
+    khptm2DeviceType==='Vô tuyến' &&
+    khptm2Role==='NetX thẩm định'
+  ){
+    var sel=selectedRouteRecipients();
+    if(!sel.main){
+      switchRouteTab('receiver');
+      return toast('Chọn 01 người xử lý chính');
+    }
+
+    if(sel.main.id==='kh2sp'){
+      var note=(document.getElementById('transferNote')?document.getElementById('transferNote').value:'').trim();
+
+      khptm2RadioNetXReviewed=true;
+      khptm2History.unshift({
+        time:new Date().toLocaleString('vi-VN',{hour12:false}),
+        actor:'NetX',
+        text:'Hoàn thành rà soát/thẩm định đề xuất của VNPT TTP/VNP và Ban KTM; chuyển kết quả/thông tin đã kiểm tra cho Ban KT'+(note?' · '+note:'')
+      });
+
+      pendingTransferAction='';
+      hideTransferModal();
+
+      // Đổi state trước, sau đó mở lại đúng màn xử lý của Ban KT.
+      khptm2Step='B1';
+      khptm2Role='Chuyên viên Ban KT';
+      openKHPTMBuildProcess('B1');
+
+      toast('Đã chuyển kết quả thẩm định về Ban KT');
+      return;
+    }
+  }
+
+  return confirmTransfer();
+}
 
 renderFields();renderTemplatePreview();renderSharedVars();renderDetailFields();renderTemplateDetailPreview();updateAppliedFilesUI();renderTeamTemplateFields();syncRoleHeader();goHome();
 if(document.getElementById("team-create").classList.contains("active"))renderFlowDemo();
