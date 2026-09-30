@@ -1713,7 +1713,7 @@ function setKHPTM2RouteFiles(action){
   }else if(action==='khbuildInfoReturn'){
     note.value=khptm2ProviderReturnTo==='NetX'
       ? 'Bổ sung/chỉnh sửa thông tin theo yêu cầu của NetX; chuyển lại NetX thẩm định.'
-      : 'Đơn vị cung cấp có thể chuyển thông tin tới đúng nơi nhận theo luồng.';
+      : 'Đơn vị cung cấp có thể chuyển thông tin về Ban KT hoặc chuyển trực tiếp NetX thẩm định.';
   }else if(action==='khbuildReviewRoute'){
     note.value='NetX có thể yêu cầu đơn vị cung cấp bổ sung/chỉnh sửa hoặc chuyển kết quả đã kiểm tra về Ban KT.';
   }else if(action==='khbuildSubmitLDTCT'){
@@ -1742,18 +1742,15 @@ function openKHPTM2Transfer(action){
   if(khptm2RadioProvided.ext&&khptm2RadioProvided.ktm)routeAllowed.push('kh2netx');
   if(khptm2RadioNetXReviewed)routeAllowed.push('kh2lead');
 
-  var providerReturnAllowed=['kh2sp'];
-  var providerReturnMain='Chuyên viên Ban KT';
+  // Vô tuyến: sau khi cung cấp thông tin, đơn vị có thể chuyển
+  // về Ban KT hoặc chuyển trực tiếp NetX thẩm định.
+  // Riêng trường hợp NetX yêu cầu bổ sung thì phải trả lại NetX.
+  var providerReturnAllowed=['kh2sp','kh2netx'];
+  var providerReturnMain='';
 
   if(khptm2ProviderReturnTo==='NetX'){
     providerReturnAllowed=['kh2netx'];
     providerReturnMain='Các NetX';
-  }else if(khptm2ProviderUnit==='Ban KTM'){
-    providerReturnAllowed=['kh2netx'];
-    providerReturnMain='Các NetX';
-  }else if(String(khptm2ProviderUnit).indexOf('VNPT TTP/VNP')===0){
-    providerReturnAllowed=['kh2sp','kh2netx'];
-    providerReturnMain='';
   }
 
   var cfg={
