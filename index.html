@@ -1330,27 +1330,27 @@ function renderKHPTM2TopActions(){
     html+="<button onclick=\"toast('Đã lưu nháp hồ sơ KHPTM Core')\">Lưu nháp</button>";
     html+="<button onclick=\"openKHPTM2Preview('submission')\">Xem Tờ trình</button>";
     html+="<button onclick=\"openKHPTM2Preview('draftDecision')\">Xem dự thảo QĐ Tập đoàn</button>";
-    html+="<button class=\"kh2-emphasis\" onclick=\"openKHPTM2Transfer('khbuildRoute')\">Chuyển</button>";
+    html+="<button class=\"khptm-emphasis\" onclick=\"openKHPTM2Transfer('khbuildRoute')\">Chuyển</button>";
   }else if(khptm2Role==='Đơn vị cung cấp thông tin'&&khptm2Step==='BINFO'){
     html+="<button onclick=\"openKHPTM2Preview('gnv')\">Xem VB GNV</button>";
-    html+="<button class=\"kh2-emphasis\" onclick=\"openKHPTM2Transfer('khbuildInfoReturn')\">Chuyển</button>";
+    html+="<button class=\"khptm-emphasis\" onclick=\"openKHPTM2Transfer('khbuildInfoReturn')\">Chuyển</button>";
   }else if(khptm2Role==='LĐ Ban KT'&&khptm2Step==='B2'){
     html+="<button onclick=\"openKHPTM2Preview('submission')\">Xem Tờ trình</button>";
     html+="<button onclick=\"openKHPTM2Preview('draftDecision')\">Xem dự thảo QĐ Tập đoàn</button>";
-    html+="<button class=\"kh2-danger\" onclick=\"khptm2ReturnSpecialist()\">Trả lại</button>";
-    html+=khptm2UnitLeaderSigned?"<button class=\"kh2-emphasis\" onclick=\"openKHPTM2Transfer('khbuildSubmitLDTCT')\">Chuyển</button>":"<button class=\"kh2-emphasis\" onclick=\"khptm2SignUnitLeader()\">Ký số Tờ trình</button>";
+    html+="<button class=\"khptm-danger\" onclick=\"khptm2ReturnSpecialist()\">Trả lại</button>";
+    html+=khptm2UnitLeaderSigned?"<button class=\"khptm-emphasis\" onclick=\"openKHPTM2Transfer('khbuildSubmitLDTCT')\">Chuyển</button>":"<button class=\"khptm-emphasis\" onclick=\"khptm2SignUnitLeader()\">Ký số Tờ trình</button>";
   }else if(khptm2Role==='LĐTCT'&&khptm2Step==='B3'){
     html+="<button onclick=\"openKHPTM2Preview('submission')\">Xem Tờ trình</button>";
     html+="<button onclick=\"openKHPTM2Preview('outgoing')\">Xem VB trình Tập đoàn</button>";
     html+="<button onclick=\"openKHPTM2Preview('draftDecision')\">Xem dự thảo QĐ Tập đoàn</button>";
-    html+="<button class=\"kh2-danger\" onclick=\"khptm2ReturnSpecialist()\">Trả lại</button>";
-    html+=khptm2LDTCTSigned?"<button class=\"kh2-emphasis\" onclick=\"openKHPTM2Transfer('khbuildToClerk')\">Chuyển</button>":"<button class=\"kh2-emphasis\" onclick=\"khptm2SignLDTCT()\">Ký số VB trình Tập đoàn</button>";
+    html+="<button class=\"khptm-danger\" onclick=\"khptm2ReturnSpecialist()\">Trả lại</button>";
+    html+=khptm2LDTCTSigned?"<button class=\"khptm-emphasis\" onclick=\"openKHPTM2Transfer('khbuildToClerk')\">Chuyển</button>":"<button class=\"khptm-emphasis\" onclick=\"khptm2SignLDTCT()\">Ký số VB trình Tập đoàn</button>";
   }else if(khptm2Role==='Văn thư'&&khptm2Step==='B4'){
     html+="<button onclick=\"openKHPTM2Preview('outgoing')\">Xem văn bản đã ký</button>";
-    html+="<button class=\"kh2-emphasis\" onclick=\"issueKHPTM2()\">Ban hành</button>";
+    html+="<button class=\"khptm-emphasis\" onclick=\"issueKHPTM2()\">Ban hành</button>";
   }else if(khptm2Role==='Văn thư'&&khptm2Step==='DONE'){
     html+="<button onclick=\"openKHPTM2Preview('outgoing')\">Xem văn bản</button>";
-    html+="<button class=\"kh2-emphasis\" onclick=\"toast('Đã chuyển hồ sơ trình Tập đoàn qua eOffice (demo)')\">Chuyển Tập đoàn</button>";
+    html+="<button class=\"khptm-emphasis\" onclick=\"toast('Đã chuyển hồ sơ trình Tập đoàn qua eOffice (demo)')\">Chuyển Tập đoàn</button>";
   }
   h.innerHTML=html;
 }
@@ -1406,34 +1406,117 @@ function renderKHPTM2Clerk(){
     '<div class="khptm-issue-grid"><div><label>Số văn bản <span class="req">*</span></label><input id="kh2IssueNumber"></div><div><label>Hậu tố</label><input id="kh2IssueSuffix" value="KT"></div><div><label>Ngày ban hành <span class="req">*</span></label><input id="kh2IssueDate" type="date" value="2026-12-05"></div><div><label>Số eOffice/VBKS</label><input id="kh2IssueEoffice"></div></div>'+
     '</div></div>';
 }
-function khptm2DocRow(stt,signed,main,related,group,file,action){
-  return '<tr><td class="center">'+stt+'</td><td class="center">'+signed+'</td><td class="center"><input type="checkbox" checked disabled></td><td class="center"><input type="checkbox" '+(main?'checked':'')+' disabled></td><td class="center"><input type="checkbox" '+(related?'checked':'')+' disabled></td><td>--</td><td>'+group+'</td><td><span class="pm-ext-file" onclick="'+action+'">'+file+'</span></td><td>Chuyên viên Ban KT</td><td>30/09/2026<br>19:35</td><td><button class="pm-ext-action" onclick="'+action+'">Xem</button></td></tr>';
+function khptm2DocRow(stt,signed,main,related,number,eoffice,level,signer,group,file,action){
+  return '<tr>'+
+    '<td class="center">'+stt+'</td>'+
+    '<td class="center">'+signed+'</td>'+
+    '<td class="center"><input type="checkbox" checked disabled></td>'+
+    '<td class="center"><input type="checkbox" '+(main?'checked':'')+' disabled></td>'+
+    '<td class="center"><input type="checkbox" '+(related?'checked':'')+' disabled></td>'+
+    '<td>'+number+'</td>'+
+    '<td>'+eoffice+'</td>'+
+    '<td>'+level+'</td>'+
+    '<td>'+signer+'</td>'+
+    '<td><select disabled><option selected>'+group+'</option></select></td>'+
+    '<td><span class="pm-ext-file" onclick="'+action+'">'+file+'</span></td>'+
+    '<td>Chuyên viên Ban KT</td>'+
+    '<td>30/09/2026<br>19:35</td>'+
+    '<td></td>'+
+    '<td></td>'+
+    '<td><button class="pm-ext-action" onclick="'+action+'">Xem</button></td>'+
+    '</tr>';
 }
 function khptm2ExtendedHtml(){
+  var canEdit=khptm2Role==='Chuyên viên Ban KT'&&khptm2Step==='B1';
   var isLeader=khptm2Role==='LĐ Ban KT'||khptm2Role==='LĐTCT';
   var isProvider=khptm2Role==='Đơn vị cung cấp thông tin';
   var defaultTab=(isLeader||isProvider)?'exchange':'files';
 
-  /* GIỮ NGUYÊN tab Tài liệu đính kèm như version trước */
   var rows='';
-  rows+=khptm2DocRow('1','☒',false,true,'VB GNV TCT','VB_GNV_phoi_hop_XD_KHPTM_2027.pdf',"openKHPTM2Preview('gnv')");
-  rows+=khptm2DocRow('2',khptm2Requests['2.1'].status==='Chưa tạo'?'☐':'☒',true,false,'SOP1-TB-01A','Yeu_cau_cung_cap_thong_tin_Core_2.1.docx',"previewKHPTM2InfoRequest('2.1')");
-  rows+=khptm2DocRow('3',khptm2Requests['2.2'].status==='Chưa tạo'?'☐':'☒',true,false,'SOP1-TB-01A','Yeu_cau_cung_cap_thong_tin_Core_2.2.docx',"previewKHPTM2InfoRequest('2.2')");
-  rows+=khptm2DocRow('4','☐',true,false,'Hồ sơ KHPTM','KHPTM_Core_2027.xlsx',"toast('Mở file KHPTM Core 2027 (demo)')");
-  rows+=khptm2DocRow('5',khptm2UnitLeaderSigned?'☒':'☐',true,false,'Tờ trình','To_trinh_LDTCT_phe_duyet_KHPTM_Core_2027.docx',"openKHPTM2Preview('submission')");
-  rows+=khptm2DocRow('6','☐',true,false,'Dự thảo QĐ TĐ','Du_thao_QD_phe_duyet_KHPTM_2027.docx',"openKHPTM2Preview('draftDecision')");
-  rows+=khptm2DocRow('7',khptm2LDTCTSigned?'☒':'☐',true,false,'VB trình TĐ','VB_TCT_trinh_TD_phe_duyet_KHPTM_2027.docx',"openKHPTM2Preview('outgoing')");
+  rows+=khptm2DocRow(
+    '1','☒',false,true,
+    '812/VNPT Net-KT<br><span class="mini">01/10/2026</span>',
+    '698321','VNPT Net','LĐTCT','VB GNV TCT',
+    'VB_GNV_phoi_hop_XD_KHPTM_2027.pdf',
+    "openKHPTM2Preview('gnv')"
+  );
+  rows+=khptm2DocRow(
+    '2','☐',true,false,
+    '<span class="mini">Chưa cấp số</span>',
+    '','Ban KT','--','Hồ sơ KHPTM',
+    'KHPTM_Core_2027.xlsx',
+    "toast('Mở file KHPTM Core 2027 (demo)')"
+  );
+  rows+=khptm2DocRow(
+    '3',khptm2UnitLeaderSigned?'☒':'☐',true,false,
+    '<span class="mini">Chưa cấp số</span>',
+    '','VNPT Net','Theo luồng trình ký','Tờ trình',
+    'To_trinh_LDTCT_phe_duyet_KHPTM_Core_2027.docx',
+    "openKHPTM2Preview('submission')"
+  );
+  rows+=khptm2DocRow(
+    '4','☐',true,false,
+    '<span class="mini">Chưa cấp số</span>',
+    '','Tập đoàn','Theo văn bản','Dự thảo QĐ TĐ',
+    'Du_thao_QD_phe_duyet_KHPTM_2027.docx',
+    "openKHPTM2Preview('draftDecision')"
+  );
+  rows+=khptm2DocRow(
+    '5',khptm2LDTCTSigned?'☒':'☐',true,false,
+    khptm2Step==='DONE'?(khptm2Issue.number||'...')+'/VNPT Net-'+khptm2Issue.suffix+'<br><span class="mini">'+formatDateVN(khptm2Issue.date)+'</span>':'<span class="mini">Chưa cấp số</span>',
+    khptm2Step==='DONE'?(khptm2Issue.eoffice||''):'',
+    'VNPT Net','LĐTCT','VB trình TĐ',
+    'VB_TCT_trinh_TD_phe_duyet_KHPTM_2027.docx',
+    "openKHPTM2Preview('outgoing')"
+  );
+
+  var uploadRow=canEdit?
+    '<table class="pm-ext-add-table">'+
+      '<colgroup><col style="width:72px"><col style="width:55px"><col style="width:48px"><col style="width:48px"><col><col style="width:126px"><col style="width:88px"><col style="width:94px"><col style="width:112px"><col style="width:116px"><col style="width:118px"><col style="width:34px"></colgroup>'+
+      '<thead><tr><th>Yêu cầu ký số<br>chính thức<br>(PDF,DOCX)</th><th>Cho ĐTVT<br>xem</th><th>VB<br>Chính</th><th>VB<br>LQ</th><th>Đường dẫn file</th><th>Nhóm tài liệu</th><th>Số VB</th><th>Ngày VB</th><th>Cấp ra VB</th><th>Người ký</th><th>Chức vụ người ký</th><th>Xóa</th></tr></thead>'+
+      '<tbody><tr>'+
+        '<td><input type="checkbox"></td>'+
+        '<td><input type="checkbox" checked></td>'+
+        '<td><input type="checkbox"></td>'+
+        '<td><input type="checkbox"></td>'+
+        '<td><input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx"></td>'+
+        '<td><select><option>-- Chọn --</option><option>Hồ sơ KHPTM</option><option>Tờ trình</option><option>Dự thảo QĐ TĐ</option><option>VB trình TĐ</option><option>Hồ sơ liên quan</option></select></td>'+
+        '<td><input value=""></td>'+
+        '<td><input type="date"></td>'+
+        '<td><input value=""></td>'+
+        '<td><input placeholder="Người ký"></td>'+
+        '<td><select><option>-- Chọn --</option><option>Lãnh đạo Ban</option><option>Tổng Giám đốc</option><option>Phó Tổng Giám đốc</option><option>Khác</option></select></td>'+
+        '<td><span class="linklike" onclick="toast(\'Đã xóa dòng file\')">Xóa</span></td>'+
+      '</tr></tbody>'+
+    '</table>'+
+    '<div class="pm-ext-add-links"><span onclick="toast(\'Mở danh sách file từ template\')">Thêm file từ template</span><span onclick="toast(\'Đã thêm dòng file mới\')">Thêm File</span><span onclick="toast(\'Đã lưu tài liệu\')">Lưu tài liệu</span></div>'
+    :'';
 
   var placeholder=isLeader?'Nhập ý kiến xử lý...':isProvider?'Nhập nội dung phản hồi...':'Nhập nội dung trao đổi...';
   var sendLabel=isLeader?'Gửi ý kiến':'Gửi';
 
   return '<div class="pm-ims-extended"><span class="pm-ext-caption">Thông tin mở rộng</span>'+
-    '<div class="pm-ext-tabs"><div class="pm-ext-tab '+(defaultTab==='files'?'active':'')+'" onclick="switchKHPTM2ExtTab(\'files\',this)">Tài liệu đính kèm</div><div class="pm-ext-tab" onclick="switchKHPTM2ExtTab(\'route\',this)">Lịch sử luân chuyển</div><div class="pm-ext-tab '+(defaultTab==='exchange'?'active':'')+'" onclick="switchKHPTM2ExtTab(\'exchange\',this)">Lịch sử trao đổi</div></div>'+
-    '<div id="khptm2ExtFiles" class="pm-ext-pane '+(defaultTab==='files'?'active':'')+'"><table class="pm-ext-table"><thead><tr><th>STT</th><th>Trạng thái<br>ký số</th><th>Cho ĐTVT<br>xem</th><th>VB<br>Chính</th><th>VB<br>LQ</th><th>Số, ngày VB</th><th>Nhóm tài liệu</th><th>Tên tài liệu</th><th>Người tạo</th><th>Thời gian tạo</th><th>Thao tác</th></tr></thead><tbody>'+rows+'</tbody></table><div style="padding:8px"><button onclick="toast(\'Demo: tải tài liệu KHPTM/Phụ lục lên hồ sơ\')">+ Tải tài liệu</button></div></div>'+
+    '<div class="pm-ext-tabs">'+
+      '<div class="pm-ext-tab '+(defaultTab==='files'?'active':'')+'" data-khptm2-ext="files" onclick="switchKHPTM2ExtTab(\'files\',this)">Tài liệu đính kèm</div>'+
+      '<div class="pm-ext-tab" data-khptm2-ext="route" onclick="switchKHPTM2ExtTab(\'route\',this)">Lịch sử luân chuyển</div>'+
+      '<div class="pm-ext-tab '+(defaultTab==='exchange'?'active':'')+'" data-khptm2-ext="exchange" onclick="switchKHPTM2ExtTab(\'exchange\',this)">Lịch sử trao đổi</div>'+
+    '</div>'+
+    '<div id="khptm2ExtFiles" class="pm-ext-pane '+(defaultTab==='files'?'active':'')+'">'+
+      '<table class="pm-ext-table">'+
+        '<colgroup><col class="pm-ext-w-stt"><col class="pm-ext-w-check"><col class="pm-ext-w-check"><col class="pm-ext-w-check-sm"><col class="pm-ext-w-check-sm"><col class="pm-ext-w-date"><col class="pm-ext-w-eoffice"><col class="pm-ext-w-level"><col class="pm-ext-w-signer"><col class="pm-ext-w-group"><col><col class="pm-ext-w-user"><col class="pm-ext-w-time"><col class="pm-ext-w-office"><col class="pm-ext-w-update"><col class="pm-ext-w-docact"></colgroup>'+
+        '<thead><tr><th>STT</th><th>Trạng thái<br>ký số</th><th>Cho ĐTVT<br>xem</th><th>VB<br>Chính</th><th>VB<br>LQ</th><th>Số, ngày VB</th><th>Số<br>eOffice</th><th>Cấp ra VB</th><th>Người ký</th><th>Nhóm tài liệu</th><th>Tên tài liệu</th><th>Người tạo</th><th>Thời gian<br>tạo</th><th>Thao tác<br>eOffice</th><th>Cập nhật<br>người ký</th><th>Thao tác<br>văn bản</th></tr></thead>'+
+        '<tbody>'+rows+'</tbody>'+
+      '</table>'+uploadRow+
+    '</div>'+
     '<div id="khptm2ExtRoute" class="pm-ext-pane"><div id="khptm2History" class="history-list"></div></div>'+
-    '<div id="khptm2ExtExchange" class="pm-ext-pane '+(defaultTab==='exchange'?'active':'')+'"><div id="khptm2Exchange"></div>'+
-    '<div class="toolbar" style="margin-top:8px;align-items:flex-end"><div style="flex:1"><textarea id="khptm2QuickExchange" placeholder="'+placeholder+'" style="min-height:70px"></textarea><div style="margin-top:6px"><button type="button" onclick="document.getElementById(\'khptm2ExchangeFile\').click()">☁ Tải tệp lên</button><input id="khptm2ExchangeFile" type="file" style="display:none" onchange="khptm2ExchangeFileChanged(this)"><span id="khptm2ExchangeFileName" class="mini" style="margin-left:8px">'+(khptm2ExchangeDraftFile?khptm2ExchangeDraftFile:'Chưa chọn tệp')+'</span></div></div><button class="primary" onclick="sendKHPTM2Exchange()">'+sendLabel+'</button></div>'+
-    '</div></div>';
+    '<div id="khptm2ExtExchange" class="pm-ext-pane '+(defaultTab==='exchange'?'active':'')+'">'+
+      '<div id="khptm2Exchange"></div>'+
+      '<div class="toolbar" style="margin-top:8px;align-items:flex-end"><div style="flex:1">'+
+        '<textarea id="khptm2QuickExchange" placeholder="'+placeholder+'" style="min-height:70px"></textarea>'+
+        '<div style="margin-top:6px"><button type="button" onclick="document.getElementById(\'khptm2ExchangeFile\').click()">☁ Tải tệp lên</button><input id="khptm2ExchangeFile" type="file" style="display:none" onchange="khptm2ExchangeFileChanged(this)"><span id="khptm2ExchangeFileName" class="mini" style="margin-left:8px">'+(khptm2ExchangeDraftFile?khptm2ExchangeDraftFile:'Chưa chọn tệp')+'</span></div>'+
+      '</div><button class="primary" onclick="sendKHPTM2Exchange()">'+sendLabel+'</button></div>'+
+    '</div>'+
+  '</div>';
 }
 function renderKHPTM2Extended(){var h=document.getElementById('khptm2Extended');if(h)h.innerHTML=khptm2ExtendedHtml()}
 function switchKHPTM2ExtTab(name,el){
@@ -1540,7 +1623,7 @@ function openKHPTM2Transfer(action){
   };
   currentTransferCfg=cfg[action]||cfg.khbuildRoute;
   var search=document.getElementById('routeReceiverSearch');if(search)search.value='';
-  renderRouteRecipients();switchRouteTab('receiver');setKHPTM2RouteFiles(action);document.getElementById('transferModal').classList.add('show');
+  renderRouteRecipients();switchRouteTab('files');setKHPTM2RouteFiles(action);document.getElementById('transferModal').classList.add('show');
 }
 function khptm2SubmitLeader(){khptm2Log('Chuyên viên Ban KT','Trình hồ sơ KHPTM Core tới LĐ Ban KT');khptm2Step='B2';khptm2Role='LĐ Ban KT';renderKHPTMBuild();window.scrollTo({top:0,behavior:'smooth'})}
 function khptm2SignUnitLeader(){if(khptm2Step!=='B2'||khptm2Role!=='LĐ Ban KT')return toast('Hồ sơ không ở bước LĐ Ban KT');khptm2UnitLeaderSigned=true;khptm2Log('LĐ Ban KT','Đã ký số Tờ trình LĐ TCT phê duyệt KH PTM');renderKHPTMBuild();toast('Đã ký số Tờ trình')}
