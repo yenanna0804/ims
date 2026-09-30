@@ -1234,11 +1234,10 @@ function renderKHPTMTopActions(){
       : '<button class="khptm-emphasis" onclick="khptmSignSubmissionByUnitLeader()">Ký số Tờ trình</button>';
   }else if(khptmRole==='LĐTCT'&&khptmStep==='K3'){
     html+='<button onclick="openKHPTMPreview(\'submission\')">Xem Tờ trình</button>';
-    html+='<button onclick="openKHPTMPreview(\'source\')">Xem VB Tập đoàn</button>';
-    html+='<button onclick="openKHPTMPreview(\'gnv\')">Xem dự thảo VB GNV</button>';
+    html+='<button onclick="openKHPTMPreview(\'gnv\')">Xem VB GNV</button>';
     html+='<button class="khptm-danger" onclick="khptmReturnToSpecialist()">Trả lại</button>';
     html+=khptmSigned
-      ? '<button class="khptm-emphasis" onclick="openKhptmTransfer(\'khptmToClerk\')">Chuyển Văn thư</button>'
+      ? '<button class="khptm-emphasis" onclick="openKhptmTransfer(\'khptmToClerk\')">Chuyển</button>'
       : '<button class="khptm-emphasis" onclick="khptmSignByLDTCT()">Ký số VB GNV</button>';
   }else if(khptmRole==='Văn thư'&&khptmStep==='K4'){
     html+='<button onclick="openKHPTMPreview(\'gnv\')">Xem văn bản đã ký</button>';
@@ -1267,19 +1266,7 @@ function khptmSignSubmissionByUnitLeader(){
 function renderKHPTMLDTCT(){
   const h=document.getElementById('khptmPanelLDTCT');
   if(!h)return;
-  h.innerHTML='<div class="section"><h3>Văn bản trình ký</h3><div class="body">'
-    +'<div class="khptm-doc-preview"><div class="khptm-paper">'
-    +'<div style="text-align:center"><b>TỔNG CÔNG TY HẠ TẦNG MẠNG - VNPT NET</b></div>'
-    +'<p>Số: .../VNPT Net-KT</p>'
-    +'<h2>VĂN BẢN GIAO NHIỆM VỤ</h2>'
-    +'<h3>Phối hợp xây dựng Kế hoạch phát triển mạng năm 2027</h3>'
-    +'<p><b>Kính gửi:</b> Các đơn vị được giao/phối hợp.</p>'
-    +'<p>Căn cứ văn bản hướng dẫn của Tập đoàn, Tổng công ty giao các đơn vị phối hợp cung cấp thông tin, số liệu và xây dựng KHPTM năm 2027 theo phạm vi được phân công.</p>'
-    +'<p>Hạn thực hiện: <b>20/10/2026</b>.</p>'
-    +'<div class="sign"><b>TỔNG GIÁM ĐỐC</b><br><br><br>'+(khptmSigned?'Đã ký số':'Chờ ký số')+'</div>'
-    +'</div></div>'
-    +(khptmSigned?'<div class="khptm-output" style="margin-top:8px"><b>Kết quả:</b> Văn bản đã được LĐTCT ký, chờ Văn thư cấp số và ban hành.</div>':'')
-    +'</div></div>';
+  h.innerHTML='';
 }
 function renderKHPTMClerk(){
   const h=document.getElementById('khptmPanelClerk');
