@@ -1251,10 +1251,41 @@ function renderKHPTMTopActions(){
 function renderKHPTM(){const sel=document.getElementById('khptmRole');if(sel)sel.value=khptmRole;['khptmPanelSpecialist','khptmPanelUnitLeader','khptmPanelLDTCT','khptmPanelClerk'].forEach(id=>document.getElementById(id)?.classList.remove('active'));const map={'Chuyên viên KHPTM':'khptmPanelSpecialist','LĐ Ban chủ trì':'khptmPanelUnitLeader','LĐTCT':'khptmPanelLDTCT','Văn thư':'khptmPanelClerk'};document.getElementById(map[khptmRole])?.classList.add('active');renderKHPTMTopActions();renderKHPTMSpecialist();renderKHPTMUnitLeader();renderKHPTMLDTCT();renderKHPTMClerk();renderKHPTMExtended();renderKHPTMHistory();renderKHPTMExchange()}
 function renderKHPTMFlow(){const idx={K1:0,K2:1,K3:2,K4:3,DONE:4}[khptmStep]??0;const nodes=[['1','Ghi nhận VB TĐ & lập hồ sơ','Chuyên viên'],['2','Xem xét/Trình tiếp','LĐ Ban chủ trì'],['3','Ký VB GNV','LĐTCT'],['4','Cấp số/Ban hành','Văn thư'],['✓','Phát hành','Đơn vị phối hợp']];document.getElementById('khptmFlowDiagram').innerHTML=nodes.map((n,i)=>`<div class="flow-node ${i<idx?'done':''} ${i===idx?'current':''}"><div class="circle">${n[0]}</div><div class="name">${n[1]}</div><div class="role">${n[2]}</div></div>`).join('')}
 function renderKHPTMSpecialist(){const h=document.getElementById('khptmPanelSpecialist');if(!h)return;if(khptmStep!=='K1'){h.innerHTML=`<div class="section"><h3>Hồ sơ Thông báo/Hướng dẫn KHPTM</h3><div class="body">${khptmSummaryHtml()}<div class="gnv-viewonly-note">Hồ sơ đã chuyển sang bước xử lý tiếp theo. Chuyên viên theo dõi trạng thái, tài liệu tại Thông tin mở rộng và lịch sử xử lý.</div></div></div>`;return}h.innerHTML=`<div class="section"><h3>1. Thông tin Thông báo/Hướng dẫn KHPTM</h3><div class="body"><div class="grid"><div><label>Tên hướng dẫn/GNV <span class="req">*</span></label><input value="Giao nhiệm vụ phối hợp xây dựng KHPTM năm 2027"></div><div><label>Năm kế hoạch <span class="req">*</span></label><input value="2027"></div><div><label>Hạn lập/thực hiện <span class="req">*</span></label><input type="date" value="2026-10-20"></div><div><label>Mảng KHPTM</label><select><option selected>Core + Vô tuyến + BRCĐ + CSHT</option><option>Core di động</option><option>Vô tuyến</option><option>BRCĐ</option><option>CSHT</option></select></div><div style="grid-column:1/-1"><label>Trích yếu nội dung</label><textarea>Giao nhiệm vụ các đơn vị phối hợp cung cấp thông tin và xây dựng KHPTM năm 2027 theo hướng dẫn của Tập đoàn.</textarea></div></div></div></div><div class="section"><h3>2. Nội dung giao nhiệm vụ phối hợp</h3><div class="body"><div class="grid two"><div><label>Đơn vị nhận/phối hợp</label><div class="khptm-unit-tags"><span class="khptm-unit-tag">Ban KT</span><span class="khptm-unit-tag">Ban KTM</span><span class="khptm-unit-tag">Các NetX</span><span class="khptm-unit-tag">VNPT TTP/VNP/IT</span></div><div class="hint">Danh sách chính thức sẽ lấy theo cấu hình/biểu mẫu được duyệt.</div></div><div><label>Hạn thực hiện</label><input type="date" value="2026-10-20"></div><div style="grid-column:1/-1"><label>Nội dung giao nhiệm vụ</label><textarea>Phối hợp cung cấp thông tin, số liệu và thực hiện các nội dung phục vụ xây dựng KHPTM theo phân công và hướng dẫn của Tập đoàn.</textarea></div></div></div></div>`}
+function khptmLeaderSigningPreviewHtml(role){
+  const isUnitLeader=role==='LĐ Ban chủ trì';
+  const signed=isUnitLeader?khptmUnitLeaderSigned:khptmSigned;
+  const docLabel=isUnitLeader?'Tờ trình':'Văn bản GNV phối hợp XD KHPTM';
+  let paper='';
+  if(isUnitLeader){
+    paper='<div style="text-align:center"><b>TỔNG CÔNG TY HẠ TẦNG MẠNG - VNPT NET</b></div>'
+      +'<p>Số: .../TTr-VNPT Net-KT</p>'
+      +'<h2>TỜ TRÌNH</h2>'
+      +'<h3>Về việc ban hành Văn bản giao nhiệm vụ phối hợp xây dựng KHPTM năm 2027</h3>'
+      +'<p><b>Kính trình:</b> Lãnh đạo Tổng công ty.</p>'
+      +'<p>Căn cứ văn bản hướng dẫn của Tập đoàn, đơn vị chủ trì trình Lãnh đạo Tổng công ty xem xét ban hành Văn bản giao nhiệm vụ phối hợp xây dựng KHPTM năm 2027.</p>'
+      +'<div class="sign"><b>LÃNH ĐẠO BAN CHỦ TRÌ</b><br><br><br>'+(signed?'(Đã ký số)':'(Chờ ký)')+'</div>';
+  }else{
+    paper='<div style="text-align:center"><b>TỔNG CÔNG TY HẠ TẦNG MẠNG - VNPT NET</b></div>'
+      +'<p>Số: .../VNPT Net-KT</p>'
+      +'<h2>VĂN BẢN GIAO NHIỆM VỤ</h2>'
+      +'<h3>Phối hợp xây dựng Kế hoạch phát triển mạng năm 2027</h3>'
+      +'<p><b>Kính gửi:</b> Ban KT; Ban KTM; các NetX; VNPT TTP/VNP/IT và các đơn vị liên quan.</p>'
+      +'<p>Căn cứ văn bản hướng dẫn của Tập đoàn, Tổng công ty giao các đơn vị phối hợp cung cấp thông tin, số liệu và triển khai xây dựng KHPTM năm 2027.</p>'
+      +'<p><b>Hạn thực hiện:</b> 20/10/2026.</p>'
+      +'<div class="sign"><b>TỔNG GIÁM ĐỐC</b><br><br><br>'+(signed?'(Đã ký số)':'(Chờ ký)')+'</div>';
+  }
+  return '<div class="section khptm-leader-signing-preview">'
+    +'<h3>Văn bản trình ký</h3>'
+    +'<div class="body">'
+    +'<div class="khptm-note" style="margin-bottom:10px"><b>Văn bản cần ký:</b> '+docLabel+'</div>'
+    +'<div class="khptm-doc-preview"><div class="khptm-paper">'+paper+'</div></div>'
+    +(signed?'<div class="khptm-output" style="margin-top:8px"><b>Trạng thái:</b> Đã ký số.</div>':'')
+    +'</div></div>';
+}
 function renderKHPTMUnitLeader(){
   const h=document.getElementById('khptmPanelUnitLeader');
   if(!h)return;
-  h.innerHTML='';
+  h.innerHTML=khptmLeaderSigningPreviewHtml('LĐ Ban chủ trì');
 }
 function khptmSignSubmissionByUnitLeader(){
   if(khptmStep!=='K2'||khptmRole!=='LĐ Ban chủ trì')return toast('Hồ sơ không ở bước LĐ Ban chủ trì');
@@ -1266,7 +1297,7 @@ function khptmSignSubmissionByUnitLeader(){
 function renderKHPTMLDTCT(){
   const h=document.getElementById('khptmPanelLDTCT');
   if(!h)return;
-  h.innerHTML='';
+  h.innerHTML=khptmLeaderSigningPreviewHtml('LĐTCT');
 }
 function renderKHPTMClerk(){
   const h=document.getElementById('khptmPanelClerk');
