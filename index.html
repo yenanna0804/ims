@@ -1323,7 +1323,7 @@ function khptmExtendedHtml(){
   const canEdit=khptmRole==='Chuyên viên KHPTM' && khptmStep==='K1';
   const isLeader=khptmRole==='LĐ Ban chủ trì'||khptmRole==='LĐTCT';
   const defaultTab=isLeader?'exchange':'files';
-  const canExchange=canEdit||isLeader;
+  const canExchange=true;
   const exchangePlaceholder=isLeader?'Nhập ý kiến xử lý...':'Nhập nội dung trao đổi...';
   const exchangeButton=isLeader?'Gửi ý kiến':'Gửi';
   const exchangeDefault=khptmRole==='LĐ Ban chủ trì'?'Đồng ý nội dung Tờ trình và dự thảo Văn bản GNV.':khptmRole==='LĐTCT'?'Đồng ý nội dung trình ký.':'';
