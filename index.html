@@ -2100,8 +2100,13 @@ confirmTransfer=function(){
         'NetX',
         'Hoàn thành rà soát/thẩm định đề xuất của VNPT TTP/VNP và Ban KTM; chuyển kết quả/thông tin đã kiểm tra cho Ban KT'+(note?' · '+note:'')
       );
-      khptm2Step='B1';
-      khptm2Role='Chuyên viên Ban KT';
+
+      // Chuyển hẳn context xử lý về màn Ban KT.
+      // Dùng openKHPTMBuildProcess để đồng bộ role selector, panel active và page active.
+      pendingTransferAction='';
+      openKHPTMBuildProcess('B1');
+      window.scrollTo({top:0,behavior:'smooth'});
+      return;
 
     }else{
       pendingTransferAction='';renderKHPTMBuild();document.getElementById('khptm-build-process').classList.add('active');
