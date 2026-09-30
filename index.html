@@ -201,6 +201,22 @@
   font-weight:700;
 }
 #khptmTopActions{display:contents}
+
+/* KHPTM Step 2 - Build/Submit */
+#khptm-build-process .titlebar .buttons button{background:#fff !important;color:#17344f !important;border:1px solid #b9cddd !important;box-shadow:none !important}
+#khptm-build-process .titlebar .buttons button:hover{background:#f7fbff !important;border-color:#8fb7d8 !important}
+#khptm-build-process .titlebar .buttons button.kh2-danger{color:#b42318 !important;border-color:#e1aaa4 !important}
+#khptm-build-process .titlebar .buttons button.kh2-emphasis{color:#075f9f !important;border-color:#7fb2d7 !important;font-weight:700}
+#khptm2TopActions{display:contents}
+.kh2-info-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px 12px}
+.kh2-flow-table td,.kh2-flow-table th{vertical-align:top}
+.kh2-doc-note{padding:9px 11px;background:#f7fafc;border:1px dashed #b9cddd;border-radius:4px;color:#50697e;font-size:12px;line-height:1.55}
+.kh2-source-card{border:1px solid #c9d9e6;background:#f8fbfe;border-radius:4px;padding:9px 11px}
+.kh2-source-card .k{font-size:11px;color:#6b7f91;margin-bottom:3px}.kh2-source-card .v{font-weight:700;color:#164b72}
+.kh2-request-status{font-weight:700;color:#a35d00}.kh2-request-status.done{color:#187a42}
+.kh2-modal-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 14px}.kh2-modal-grid .full{grid-column:1/-1}
+.kh2-paper-placeholder{border:1px dashed #a9becf;background:#f7fafc;padding:16px;text-align:center;color:#60788c;margin:14px 0}
+@media(max-width:1050px){.kh2-info-grid,.kh2-modal-grid{grid-template-columns:1fr}}
 </style>
 
 <style>
@@ -215,6 +231,7 @@
   <div id="nav-khptm" class="item has-menu">QUẢN LÝ KHPTM <span class="caret">▼</span>
     <div class="submenu">
       <div class="subitem" onclick="event.stopPropagation();openKHPTMModule()">Thông báo/Hướng dẫn KHPTM</div>
+      <div class="subitem" onclick="event.stopPropagation();openKHPTMBuildModule()">Xây dựng, trình KHPTM</div>
     </div>
   </div>
   <div id="nav-project" class="item has-menu">QUẢN LÝ DỰ ÁN <span class="caret">▼</span>
@@ -409,6 +426,55 @@
 
 <div id="khptmPreviewModal" class="modal"><div class="modalbox" style="width:min(980px,95vw)"><div class="modalhead"><b id="khptmPreviewTitle">Xem trước văn bản</b><button onclick="closeKHPTMPreview()" style="background:transparent;border:0;color:white;font-size:20px">×</button></div><div class="modalbody"><div id="khptmPreviewPaper" class="khptm-paper"></div><div class="footer-actions"><button class="primary" onclick="closeKHPTMPreview()">Đóng</button></div></div></div></div>
 
+
+
+<!-- KHPTM / XAY DUNG - TRINH KHPTM -->
+<section id="khptm-build-list" class="page">
+  <div class="crumb">QUẢN LÝ KHPTM &gt; Xây dựng, trình KHPTM</div>
+  <div class="titlebar"><h1>Xây dựng, trình KHPTM</h1><div class="buttons"><button class="primary" onclick="openKHPTMBuildCreate()">+ Tạo mới</button><button onclick="goHome()">Quay lại</button></div></div>
+  <div class="section"><h3>Tìm kiếm, tra cứu</h3><div class="body grid">
+    <div><label>Năm kế hoạch</label><select><option>Tất cả</option><option selected>2027</option><option>2026</option></select></div>
+    <div><label>Loại thiết bị</label><select><option>Tất cả</option><option selected>Core di động</option><option>Vô tuyến</option><option>BRCĐ</option><option>CSHT</option></select></div>
+    <div><label>Văn bản GNV</label><input placeholder="Số/Ký hiệu hoặc trích yếu..."></div>
+    <div><label>Trạng thái</label><select><option>Tất cả</option><option>Dự thảo</option><option>Đang trình</option><option>Chờ phát hành</option><option>Đã trình Tập đoàn</option></select></div>
+  </div></div>
+  <div class="section"><h3>Danh sách hồ sơ</h3><div class="body">
+    <div class="khptm-note"><b>Một chức năng, nhiều luồng:</b> Loại thiết bị quyết định RACI và các bước con. Bản demo hiện cấu hình <b>Core di động</b>.</div>
+    <table><thead><tr><th width="45">STT</th><th width="90">Năm KH</th><th width="135">Loại thiết bị</th><th>Hồ sơ KHPTM</th><th width="180">VB GNV liên quan</th><th width="125">Hạn trình</th><th width="135">Trạng thái</th><th width="90">Thao tác</th></tr></thead><tbody>
+      <tr><td class="center">1</td><td class="center">2027</td><td>Core di động</td><td><span class="khptm-list-title" onclick="openKHPTMBuildProcess('B1')">Xây dựng KHPTM Core di động năm 2027</span><div class="mini">Ban KT chủ trì xây dựng hồ sơ</div></td><td>812/VNPT Net-KT</td><td class="center">05/12/2026</td><td><span class="badge borange">Dự thảo</span></td><td class="center"><button class="small" onclick="openKHPTMBuildProcess('B1')">Mở</button></td></tr>
+    </tbody></table>
+  </div></div>
+</section>
+
+<section id="khptm-build-process" class="page">
+  <div class="crumb">QUẢN LÝ KHPTM &gt; Xây dựng, trình KHPTM &gt; Core di động &gt; Chi tiết xử lý</div>
+  <div class="titlebar"><h1>Xây dựng, trình KHPTM - Core di động</h1><div class="buttons"><button onclick="openKHPTMBuildModule()">Danh sách</button><span id="khptm2TopActions"></span><button onclick="resetKHPTMBuildFlow()">Reset luồng</button></div></div>
+  <div class="khptm-rolebar"><label>Vai trò test</label><select id="khptm2Role" onchange="switchKHPTMBuildRole(this.value)"><option>Chuyên viên Ban KT</option><option>LĐ Ban KT</option><option>LĐTCT</option><option>Văn thư</option></select></div>
+  <div id="khptm2PanelSpecialist" class="khptm-process-panel"></div>
+  <div id="khptm2PanelUnitLeader" class="khptm-process-panel"></div>
+  <div id="khptm2PanelLDTCT" class="khptm-process-panel"></div>
+  <div id="khptm2PanelClerk" class="khptm-process-panel"></div>
+  <div id="khptm2Extended"></div>
+</section>
+
+<div id="khptm2InfoModal" class="modal"><div class="modalbox" style="width:min(920px,95vw)">
+  <div class="modalhead"><b id="khptm2InfoModalTitle">Tạo yêu cầu cung cấp thông tin</b><button onclick="closeKHPTM2InfoModal()" style="background:transparent;border:0;color:white;font-size:20px">×</button></div>
+  <div class="modalbody">
+    <div class="kh2-doc-note" style="margin-bottom:10px">Các trường dưới đây bám theo mẫu <b>SOP1-TB-01A - Văn bản yêu cầu cung cấp thông tin phục vụ XD KH PTM</b>.</div>
+    <div class="kh2-modal-grid">
+      <div><label>Đơn vị cần cung cấp thông tin <span class="req">*</span></label><input id="kh2ReqUnit"></div>
+      <div><label>Đơn vị liên quan (nếu có)</label><input id="kh2ReqRelated"></div>
+      <div class="full"><label>Căn cứ</label><input id="kh2ReqBasis" readonly value="VB GNV phối hợp XD KHPTM của TCT - 812/VNPT Net-KT"></div>
+      <div><label>Năm kế hoạch</label><input id="kh2ReqYear" value="2027"></div>
+      <div><label>Thời hạn cung cấp <span class="req">*</span></label><input id="kh2ReqDeadline" type="date"></div>
+      <div class="full"><label>Nội dung cần cung cấp thông tin <span class="req">*</span></label><textarea id="kh2ReqContent" style="min-height:90px"></textarea></div>
+      <div><label>Họ tên đầu mối</label><input id="kh2ReqContact" placeholder="Họ tên"></div>
+      <div><label>Số điện thoại</label><input id="kh2ReqPhone" placeholder="Số điện thoại"></div>
+      <div class="full"><label>Email</label><input id="kh2ReqEmail" placeholder="Địa chỉ email"></div>
+    </div>
+    <div class="footer-actions"><button onclick="closeKHPTM2InfoModal()">Đóng</button><button onclick="previewKHPTM2InfoRequest()">Xem văn bản</button><button class="primary" onclick="saveKHPTM2InfoRequest()">Lưu yêu cầu</button></div>
+  </div>
+</div></div>
 
 <!-- PROJECT TEAM LIST -->
 <section id="team-list" class="page">
