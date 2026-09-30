@@ -1413,14 +1413,20 @@ function khptm2ExtendedHtml(){
   var isLeader=khptm2Role==='LĐ Ban KT'||khptm2Role==='LĐTCT';
   var isProvider=khptm2Role==='Đơn vị cung cấp thông tin';
   var defaultTab=(isLeader||isProvider)?'exchange':'files';
+
+  /* GIỮ NGUYÊN tab Tài liệu đính kèm như version trước */
   var rows='';
   rows+=khptm2DocRow('1','☒',false,true,'VB GNV TCT','VB_GNV_phoi_hop_XD_KHPTM_2027.pdf',"openKHPTM2Preview('gnv')");
-  rows+=khptm2DocRow('2','☐',true,false,'Hồ sơ KHPTM','KHPTM_Core_2027.xlsx',"toast('Mở file KHPTM Core 2027 (demo)')");
-  rows+=khptm2DocRow('3',khptm2UnitLeaderSigned?'☒':'☐',true,false,'Tờ trình','To_trinh_LDTCT_phe_duyet_KHPTM_Core_2027.docx',"openKHPTM2Preview('submission')");
-  rows+=khptm2DocRow('4','☐',true,false,'Dự thảo QĐ TĐ','Du_thao_QD_phe_duyet_KHPTM_2027.docx',"openKHPTM2Preview('draftDecision')");
-  rows+=khptm2DocRow('5',khptm2LDTCTSigned?'☒':'☐',true,false,'VB trình TĐ','VB_TCT_trinh_TD_phe_duyet_KHPTM_2027.docx',"openKHPTM2Preview('outgoing')");
+  rows+=khptm2DocRow('2',khptm2Requests['2.1'].status==='Chưa tạo'?'☐':'☒',true,false,'SOP1-TB-01A','Yeu_cau_cung_cap_thong_tin_Core_2.1.docx',"previewKHPTM2InfoRequest('2.1')");
+  rows+=khptm2DocRow('3',khptm2Requests['2.2'].status==='Chưa tạo'?'☐':'☒',true,false,'SOP1-TB-01A','Yeu_cau_cung_cap_thong_tin_Core_2.2.docx',"previewKHPTM2InfoRequest('2.2')");
+  rows+=khptm2DocRow('4','☐',true,false,'Hồ sơ KHPTM','KHPTM_Core_2027.xlsx',"toast('Mở file KHPTM Core 2027 (demo)')");
+  rows+=khptm2DocRow('5',khptm2UnitLeaderSigned?'☒':'☐',true,false,'Tờ trình','To_trinh_LDTCT_phe_duyet_KHPTM_Core_2027.docx',"openKHPTM2Preview('submission')");
+  rows+=khptm2DocRow('6','☐',true,false,'Dự thảo QĐ TĐ','Du_thao_QD_phe_duyet_KHPTM_2027.docx',"openKHPTM2Preview('draftDecision')");
+  rows+=khptm2DocRow('7',khptm2LDTCTSigned?'☒':'☐',true,false,'VB trình TĐ','VB_TCT_trinh_TD_phe_duyet_KHPTM_2027.docx',"openKHPTM2Preview('outgoing')");
+
   var placeholder=isLeader?'Nhập ý kiến xử lý...':isProvider?'Nhập nội dung phản hồi...':'Nhập nội dung trao đổi...';
   var sendLabel=isLeader?'Gửi ý kiến':'Gửi';
+
   return '<div class="pm-ims-extended"><span class="pm-ext-caption">Thông tin mở rộng</span>'+
     '<div class="pm-ext-tabs"><div class="pm-ext-tab '+(defaultTab==='files'?'active':'')+'" onclick="switchKHPTM2ExtTab(\'files\',this)">Tài liệu đính kèm</div><div class="pm-ext-tab" onclick="switchKHPTM2ExtTab(\'route\',this)">Lịch sử luân chuyển</div><div class="pm-ext-tab '+(defaultTab==='exchange'?'active':'')+'" onclick="switchKHPTM2ExtTab(\'exchange\',this)">Lịch sử trao đổi</div></div>'+
     '<div id="khptm2ExtFiles" class="pm-ext-pane '+(defaultTab==='files'?'active':'')+'"><table class="pm-ext-table"><thead><tr><th>STT</th><th>Trạng thái<br>ký số</th><th>Cho ĐTVT<br>xem</th><th>VB<br>Chính</th><th>VB<br>LQ</th><th>Số, ngày VB</th><th>Nhóm tài liệu</th><th>Tên tài liệu</th><th>Người tạo</th><th>Thời gian tạo</th><th>Thao tác</th></tr></thead><tbody>'+rows+'</tbody></table><div style="padding:8px"><button onclick="toast(\'Demo: tải tài liệu KHPTM/Phụ lục lên hồ sơ\')">+ Tải tài liệu</button></div></div>'+
