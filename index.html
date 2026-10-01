@@ -213,6 +213,18 @@
 .kh2-doc-note{padding:9px 11px;background:#f7fafc;border:1px dashed #b9cddd;border-radius:4px;color:#50697e;font-size:12px;line-height:1.55}
 .kh2-source-card{border:1px solid #c9d9e6;background:#f8fbfe;border-radius:4px;padding:9px 11px}
 .kh2-source-card .k{font-size:11px;color:#6b7f91;margin-bottom:3px}.kh2-source-card .v{font-weight:700;color:#164b72}
+.kh2-detail-sections{display:grid;gap:12px}
+.kh2-detail-section{border:1px solid var(--line);border-radius:4px;background:#fff;overflow:hidden}
+.kh2-detail-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:11px;background:#f8fbfe;border-bottom:1px solid var(--line)}
+.kh2-detail-heading{display:flex;align-items:center;gap:10px;flex:1 1 300px;min-width:0}
+.kh2-detail-number{display:flex;align-items:center;justify-content:center;flex:0 0 30px;height:30px;border-radius:4px;font-weight:700}
+.kh2-detail-heading h4{margin:0;color:#075da7;font-size:13px;line-height:1.4;text-transform:uppercase}
+.kh2-detail-heading .mini{margin-top:3px}
+.kh2-detail-badges{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.kh2-detail-content{padding:12px}
+.kh2-detail-content .kh2-source-card{padding:14px 11px}
+.kh2-detail-content .kh2-source-card .v{color:var(--red)}
+.kh2-detail-merge{display:flex;gap:8px 16px;flex-wrap:wrap;margin-top:10px;color:var(--muted);font-size:12px}
 .kh2-request-status{font-weight:700;color:#a35d00}.kh2-request-status.done{color:#187a42}
 .kh2-modal-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 14px}.kh2-modal-grid .full{grid-column:1/-1}
 .kh2-paper-placeholder{border:1px dashed #a9becf;background:#f7fafc;padding:16px;text-align:center;color:#60788c;margin:14px 0}
@@ -1398,17 +1410,26 @@ function khptmPairMainDetailHtml(){
     : '<span class="badge borange">'+s.coord.status+'</span>';
 
   var mergedData=s.merged&&s.main.ttpData
-    ? '<div style="margin-top:10px"><table><thead><tr><th colspan="2">Dữ liệu phần VNPT TTP đã được đổ vào bản chính</th></tr></thead><tbody>'+
-        '<tr><td width="220"><b>Nội dung chi tiết</b></td><td><b>Cần khảo sát khách hàng</b></td></tr>'+
-        '<tr><td><b>Thời điểm Merge</b></td><td>'+s.main.ttpData.mergedAt+'</td></tr>'+
-      '</tbody></table></div>'
+    ? '<div class="kh2-detail-merge"><b>Thời điểm Merge</b><span>'+s.main.ttpData.mergedAt+'</span></div>'
     : '';
 
   return '<div class="section"><h3>Chi tiết hồ sơ KHPTM</h3><div class="body">'+
-    '<div class="review-grid">'+
-      '<div class="review-item"><div class="k">Phần Ban KT xây dựng</div><div class="v">Cần khảo sát khách hàng</div><div class="mini">Bản chính v'+s.main.version+' · Ban KT tiếp tục cập nhật độc lập.</div></div>'+
-      '<div class="review-item"><div class="k">Phần VNPT TTP</div><div class="v">'+ttpStatus+'</div><div class="mini">'+(s.merged?'Dữ liệu đã tự động đổ từ bản phối hợp TTP vào đúng phần TTP của bản chính.':'Chưa merge vào bản chính. Bản phối hợp được quản lý độc lập theo cùng VB GNV.')+'</div></div>'+
-    '</div>'+mergedData+
+    '<div class="kh2-detail-sections">'+
+      '<section class="kh2-detail-section" aria-labelledby="kh2DetailVN2">'+
+        '<div class="kh2-detail-head">'+
+          '<div class="kh2-detail-heading"><span class="kh2-detail-number bblue">I</span><div><h4 id="kh2DetailVN2">Thông tin VN2, hệ thống phụ trợ</h4><div class="mini">Do Ban KT lập</div></div></div>'+
+          '<div class="kh2-detail-badges"><span class="badge bblue">Ban KT</span></div>'+
+        '</div>'+
+        '<div class="kh2-detail-content"><div class="kh2-source-card"><div class="v">Cần khảo sát khách hàng</div></div></div>'+
+      '</section>'+
+      '<section class="kh2-detail-section" aria-labelledby="kh2DetailTTP">'+
+        '<div class="kh2-detail-head">'+
+          '<div class="kh2-detail-heading"><span class="kh2-detail-number bgreen">II</span><div><h4 id="kh2DetailTTP">Thông tin ManE, PON, Site router</h4><div class="mini">Do VNPT TTP lập</div></div></div>'+
+          '<div class="kh2-detail-badges"><span class="badge bgreen">VNPT TTP</span>'+ttpStatus+'</div>'+
+        '</div>'+
+        '<div class="kh2-detail-content"><div class="kh2-source-card"><div class="v">Cần khảo sát khách hàng</div></div>'+mergedData+'</div>'+
+      '</section>'+
+    '</div>'+
   '</div></div>';
 }
 function renderKHPTMPairSpecialist(){
