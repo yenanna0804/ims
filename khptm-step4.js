@@ -281,7 +281,11 @@
     const r = current(); if (!r || !['NET', 'TD'].includes(value) || r.stage !== 'APPRAISAL' || r.signed) { render(); return toast('Không đổi kịch bản sau khi ký/duyệt'); }
     r.scenario = value; r.role = value === 'NET' ? roles.net : roles.leader; r.appraised = false; render();
   }
-  function setRole(value) { const r = current(); if (r && availableRoles(r).includes(value)) { r.role = value; render(); } }
+  function setRole(value) {
+    const r = current(); if (!r) return;
+    if (availableRoles(r).includes(value)) r.role = value;
+    render();
+  }
   function availableRoles(r) { return r.scenario === 'NET' ? [roles.net, roles.clerk, roles.kt] : [roles.expert, roles.leader, roles.clerk, roles.kt]; }
 
   function render() {
@@ -308,7 +312,7 @@
   function open(type) {
     currentType = types.includes(type) ? type : currentType; ensure(currentType);
     const r = current();
-    if (khptm2Step !== step4 && khptm2DeviceType === currentType) r.previousContext = captureContext();
+    if (khptm2Step !== step4 && khptm2DeviceType === currentType && !(isKHPTMPairType() && khptmPairRecordRole === 'COORD')) r.previousContext = captureContext();
     document.querySelectorAll('.nav .item').forEach(el => el.classList.remove('active')); document.getElementById('nav-khptm').classList.add('active');
     showPage('khptm-build-process'); render();
   }
