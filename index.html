@@ -1399,11 +1399,7 @@ function khptmPairMainDetailHtml(){
 
   var mergedData=s.merged&&s.main.ttpData
     ? '<div style="margin-top:10px"><table><thead><tr><th colspan="2">Dữ liệu phần VNPT TTP đã được đổ vào bản chính</th></tr></thead><tbody>'+
-        '<tr><td width="220"><b>Hồ sơ nguồn</b></td><td>'+s.main.ttpData.sourceRecordId+' · v'+s.main.ttpData.sourceVersion+'</td></tr>'+
-        '<tr><td><b>Đơn vị xây dựng</b></td><td>VNPT TTP</td></tr>'+
-        '<tr><td><b>Văn bản GNV</b></td><td>'+s.main.ttpData.gnv+'</td></tr>'+
-        '<tr><td><b>Loại thiết bị</b></td><td>'+s.main.ttpData.deviceType+'</td></tr>'+
-        '<tr><td><b>Nội dung chi tiết</b></td><td>Cần khảo sát khách hàng - dữ liệu chi tiết sẽ hiển thị tại đây theo schema riêng của '+khptm2DeviceType+'.</td></tr>'+
+        '<tr><td width="220"><b>Nội dung chi tiết</b></td><td><b>Cần khảo sát khách hàng</b></td></tr>'+
         '<tr><td><b>Thời điểm Merge</b></td><td>'+s.main.ttpData.mergedAt+'</td></tr>'+
       '</tbody></table></div>'
     : '';
