@@ -322,7 +322,7 @@
       '<section id="khptm-step4-process" class="page"><div id="kh4Crumb" class="crumb"></div><div class="titlebar"><h1 id="kh4Title"></h1><div class="buttons"><button onclick="kh4.list()">Danh sách</button><span id="kh4Actions"></span></div></div>' +
       '<div class="khptm-rolebar"><label>Loại thiết bị</label><select id="kh4Type" onchange="kh4.open(this.value)">' + types.map(type => '<option>' + type + '</option>').join('') + '</select><label>Kịch bản test</label><select id="kh4Scenario" onchange="kh4.setScenario(this.value)"><option value="NET">NET thực hiện thay TĐ</option><option value="TD">TĐ dùng OnePMS</option></select><label>Vai trò test</label><select id="kh4Role" onchange="kh4.setRole(this.value)"></select><span id="kh4Status" class="right-note"></span></div><div id="kh4Panel"></div><div id="kh4Extended"></div></section>';
     [...container.children].forEach(section => anchor.parentNode.insertBefore(section, anchor.nextSibling));
-    const nav = document.getElementById('nav-khptm'), item = document.createElement('div'); item.className = 'subitem'; item.textContent = 'Thẩm định, phê duyệt KHPTM'; item.onclick = event => { event.stopPropagation(); list(); }; nav.appendChild(item);
+    const nav = document.getElementById('nav-khptm'), item = document.createElement('div'); item.className = 'subitem'; item.textContent = 'Thẩm định, phê duyệt KHPTM'; item.onclick = event => { event.stopPropagation(); list(); }; nav.querySelector('.submenu').appendChild(item);
   }
 
   // Các điểm nối bổ sung gọi lại nguyên hàm cũ trước/sau khi xử lý context bước 4.
