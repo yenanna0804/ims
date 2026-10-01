@@ -4,6 +4,8 @@
   const types = ['Core di động', 'Vô tuyến', 'BRCĐ', 'CSHT'];
   const roles = { net: 'NET thực hiện thay Tập đoàn', expert: 'Người thẩm định Tập đoàn', leader: 'LĐ Tập đoàn', clerk: 'Văn thư Tập đoàn', kt: 'Ban KT giải trình' };
   const records = new Map();
+  const listBadges = new WeakMap();
+  const step4 = 'KHPTM_TD';
   let currentType = types[0], nextNumber = 100, exchangeAttachment = null, modalSnapshot = null;
   const now = () => new Date().toLocaleString('vi-VN', { hour12: false });
   const tag = type => ({ 'Core di động': 'Core', 'Vô tuyến': 'Vo_tuyen', 'BRCĐ': 'BRCD', 'CSHT': 'CSHT' })[type];
@@ -33,8 +35,8 @@
     const sourceIssue = incoming ? { ...incoming.issue } : { number: '', suffix: 'KT', date: '', eoffice: '' };
     return { id: 'KHPTM4-' + tag(type) + '-2027', type, year: 2027, scenario: 'NET', role: roles.net, stage: 'APPRAISAL',
       demo: !incoming, sourceIssue, sourceHtml: sourcePaper(type, sourceIssue, !!incoming), extTemplate,
-      history: incoming ? incoming.history.map(x => ({ ...x })) : [{ actor: 'Hệ thống', text: 'Hồ sơ mẫu bước 4 – KHPTM ' + type + ' năm 2027.', time: now() }],
-      exchange: incoming ? incoming.exchange.map(x => ({ ...x })) : [], exchangeDraft: '', files: [], activeFile: null,
+      history: (incoming ? incoming.history : khptm2History).map(x => ({ ...x })),
+      exchange: (incoming ? incoming.exchange : khptm2Exchange).map(x => ({ ...x })), exchangeDraft: '', files: [], activeFile: null,
       decisionOpened: false, appraised: false, signed: false, issue: { number: '', suffix: 'VNPT', date: '', eoffice: '' }, uploadToken: 0 };
   }
 
@@ -284,45 +286,88 @@
 
   function render() {
     const r = current(); if (!r) return;
-    document.getElementById('kh4Title').textContent = 'Thẩm định, phê duyệt KHPTM – ' + r.type;
-    document.getElementById('kh4Crumb').textContent = 'QUẢN LÝ KHPTM > Thẩm định, phê duyệt KHPTM > ' + r.type + ' > Chi tiết xử lý';
-    document.getElementById('kh4Type').value = r.type; document.getElementById('kh4Scenario').value = r.scenario;
+    khptm2DeviceType = r.type; khptm2Step = step4; khptm2Role = r.role;
+    const page = document.getElementById('khptm-build-process');
+    page.querySelector('.titlebar h1').textContent = 'Xây dựng, trình KHPTM - ' + r.type;
+    page.querySelector('.crumb').textContent = 'QUẢN LÝ KHPTM > Xây dựng, trình KHPTM > ' + r.type + ' > Bước 4: Thẩm định, phê duyệt';
+    page.querySelectorAll('.khptm-process-panel').forEach(panel => panel.classList.remove('active'));
+    document.getElementById('kh4Panel').classList.add('active');
+    document.getElementById('kh4Context').style.display = 'contents';
+    document.getElementById('kh4Scenario').value = r.scenario;
     document.getElementById('kh4Scenario').disabled = r.stage !== 'APPRAISAL' || r.signed;
-    document.getElementById('kh4Role').innerHTML = availableRoles(r).map(role => '<option ' + (role === r.role ? 'selected' : '') + '>' + esc(role) + '</option>').join('');
-    document.getElementById('kh4Status').textContent = status(r);
-    document.getElementById('kh4Actions').innerHTML = actions(r); document.getElementById('kh4Panel').innerHTML = previewHtml(r); renderExtended(r);
+    addRoleOptions();
+    document.querySelectorAll('#khptm2Role [data-kh4-role]').forEach(option => { option.hidden = !availableRoles(r).includes(option.value); });
+    document.getElementById('khptm2Role').value = r.role;
+    document.getElementById('kh4Status').textContent = 'Bước 4 · ' + status(r);
+    document.getElementById('khptm2TopActions').innerHTML = actions(r);
+    document.getElementById('kh4Panel').innerHTML = previewHtml(r);
+    document.getElementById('khptm2Extended').innerHTML = '<div id="kh4Extended"></div>'; renderExtended(r);
+    refreshList();
   }
 
   function open(type) {
     currentType = types.includes(type) ? type : currentType; ensure(currentType);
+    const r = current();
+    if (khptm2Step !== step4 && khptm2DeviceType === currentType) r.previousContext = captureContext();
     document.querySelectorAll('.nav .item').forEach(el => el.classList.remove('active')); document.getElementById('nav-khptm').classList.add('active');
-    showPage('khptm-step4-process'); render();
-  }
-  function list() {
-    document.querySelectorAll('.nav .item').forEach(el => el.classList.remove('active')); document.getElementById('nav-khptm').classList.add('active');
-    document.getElementById('kh4ListRows').innerHTML = types.map((type, index) => { const r = ensure(type); return '<tr><td class="center">' + (index + 1) + '</td><td class="center">2027</td><td>' + esc(type) + '</td><td><span class="khptm-list-title" onclick="kh4.open(\'' + type + '\')">Thẩm định, phê duyệt KHPTM ' + esc(type) + ' năm 2027</span>' + (r.demo ? '<div class="mini">Hồ sơ mẫu</div>' : '') + '</td><td>' + esc(r.sourceIssue.number ? r.sourceIssue.number + '/VNPT Net-' + r.sourceIssue.suffix : '--') + '</td><td>' + esc(status(r)) + '</td><td class="center"><button onclick="kh4.open(\'' + type + '\')">Mở</button></td></tr>'; }).join('');
-    showPage('khptm-step4-list');
+    showPage('khptm-build-process'); render();
   }
 
   function receive(type, incoming) {
     const existing = records.get(type);
-    // Không ghi đè một kết quả bước 4 đã được người dùng xử lý.
-    if (existing && (!existing.demo || existing.activeFile || existing.decisionOpened)) return;
+    if (existing && !existing.demo) return;
+    if (existing) {
+      existing.demo = false; existing.sourceIssue = { ...incoming.issue };
+      existing.sourceHtml = sourcePaper(type, incoming.issue, true);
+      existing.history = [...existing.history.filter(x => !incoming.history.some(y => y.time === x.time && y.actor === x.actor && y.text === x.text)), ...incoming.history.map(x => ({ ...x }))];
+      existing.exchange = [...existing.exchange.filter(x => !incoming.exchange.some(y => y.time === x.time && y.actor === x.actor && y.text === x.text)), ...incoming.exchange.map(x => ({ ...x }))];
+      log(existing, 'Tiếp nhận hồ sơ TCT đã ban hành và chuyển tới ' + incoming.issue.transferredTo, 'Hệ thống'); return;
+    }
     const r = makeRecord(type, incoming); records.set(type, r);
     log(r, 'Tiếp nhận hồ sơ TCT đã ban hành và chuyển tới ' + incoming.issue.transferredTo, 'Hệ thống');
+  }
+
+  function captureContext() {
+    return { type: khptm2DeviceType, role: khptm2Role, step: khptm2Step, issue: khptm2Issue,
+      history: khptm2History, exchange: khptm2Exchange, banSigned: khptm2UnitLeaderSigned, tctSigned: khptm2LDTCTSigned,
+      pairRole: khptmPairRecordRole };
+  }
+  function restoreContext(r) {
+    const saved = r && r.previousContext; if (!saved) return;
+    khptm2DeviceType = saved.type; khptm2Role = saved.role; khptm2Step = saved.step; khptm2Issue = saved.issue;
+    khptm2History = r.history; khptm2Exchange = r.exchange; khptm2UnitLeaderSigned = saved.banSigned;
+    khptm2LDTCTSigned = saved.tctSigned; khptmPairRecordRole = saved.pairRole;
+  }
+  function addRoleOptions() {
+    const select = document.getElementById('khptm2Role');
+    if (!select.querySelector('[data-kh4-role]')) {
+      const group = document.createElement('optgroup'); group.label = 'Bước 4: Thẩm định, phê duyệt';
+      Object.values(roles).forEach(role => { const option = document.createElement('option'); option.value = role; option.textContent = role; option.dataset.kh4Role = 'true'; group.appendChild(option); });
+      select.appendChild(group);
+    }
+  }
+  function refreshList() {
+    document.querySelectorAll('#khptm-build-list tbody tr').forEach(row => {
+      const link = row.querySelector('.khptm-list-title');
+      if (!link || (link.getAttribute('onclick') || '').includes("'COORD'")) return;
+      const r = records.get(row.cells[2].textContent.trim());
+      if (r) {
+        if (!listBadges.has(row)) listBadges.set(row, row.cells[6].innerHTML);
+        row.cells[6].innerHTML = '<span class="badge bblue">Bước 4 · ' + esc(status(r)) + '</span>';
+      } else if (listBadges.has(row)) row.cells[6].innerHTML = listBadges.get(row);
+    });
   }
 
   function mount() {
     const anchor = document.getElementById('khptm-build-process'); if (!anchor) return;
     const style = document.createElement('style');
-    style.textContent = '#kh4Actions{display:contents}.kh4-empty{min-height:520px;display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap}.kh4-pdf{width:100%;height:690px;border:0;background:white}#khptm-step4-process .titlebar .buttons button{background:#fff;color:#17344f;border:1px solid #b9cddd}#transferModal.kh4-route button[onclick="openInitialSignModal()"],#transferModal.kh4-route button[onclick="openDigitalSignModal()"],#transferModal.kh4-route button[onclick^="generateTransferFile"],#transferModal.kh4-route .route-unit-block,#transferModal.kh4-route .route-receiver-toolbar button{display:none}';
+    style.textContent = '.kh4-empty{min-height:520px;display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap}.kh4-pdf{width:100%;height:690px;border:0;background:white}#transferModal.kh4-route button[onclick="openInitialSignModal()"],#transferModal.kh4-route button[onclick="openDigitalSignModal()"],#transferModal.kh4-route button[onclick^="generateTransferFile"],#transferModal.kh4-route .route-unit-block,#transferModal.kh4-route .route-receiver-toolbar button{display:none}';
     document.head.appendChild(style);
-    const container = document.createElement('div');
-    container.innerHTML = '<section id="khptm-step4-list" class="page"><div class="crumb">QUẢN LÝ KHPTM &gt; Thẩm định, phê duyệt KHPTM</div><div class="titlebar"><h1>Thẩm định, phê duyệt KHPTM</h1><div class="buttons"><button onclick="goHome()">Quay lại</button></div></div><div class="section"><h3>Danh sách hồ sơ</h3><div class="body"><table><thead><tr><th width="45">STT</th><th width="90">Năm KH</th><th width="135">Loại thiết bị</th><th>Hồ sơ KHPTM</th><th width="180">VB TCT trình TĐ</th><th width="220">Trạng thái</th><th width="90">Thao tác</th></tr></thead><tbody id="kh4ListRows"></tbody></table></div></div></section>' +
-      '<section id="khptm-step4-process" class="page"><div id="kh4Crumb" class="crumb"></div><div class="titlebar"><h1 id="kh4Title"></h1><div class="buttons"><button onclick="kh4.list()">Danh sách</button><span id="kh4Actions"></span></div></div>' +
-      '<div class="khptm-rolebar"><label>Loại thiết bị</label><select id="kh4Type" onchange="kh4.open(this.value)">' + types.map(type => '<option>' + type + '</option>').join('') + '</select><label>Kịch bản test</label><select id="kh4Scenario" onchange="kh4.setScenario(this.value)"><option value="NET">NET thực hiện thay TĐ</option><option value="TD">TĐ dùng OnePMS</option></select><label>Vai trò test</label><select id="kh4Role" onchange="kh4.setRole(this.value)"></select><span id="kh4Status" class="right-note"></span></div><div id="kh4Panel"></div><div id="kh4Extended"></div></section>';
-    [...container.children].forEach(section => anchor.parentNode.insertBefore(section, anchor.nextSibling));
-    const nav = document.getElementById('nav-khptm'), item = document.createElement('div'); item.className = 'subitem'; item.textContent = 'Thẩm định, phê duyệt KHPTM'; item.onclick = event => { event.stopPropagation(); list(); }; nav.querySelector('.submenu').appendChild(item);
+    const panel = document.createElement('div'); panel.id = 'kh4Panel'; panel.className = 'khptm-process-panel';
+    anchor.insertBefore(panel, document.getElementById('khptm2Extended'));
+    const context = document.createElement('span'); context.id = 'kh4Context'; context.style.display = 'none';
+    context.innerHTML = '<label>Kịch bản test</label><select id="kh4Scenario" onchange="kh4.setScenario(this.value)"><option value="NET">NET thực hiện thay TĐ</option><option value="TD">TĐ dùng OnePMS</option></select><span id="kh4Status" class="right-note"></span>';
+    anchor.querySelector('.khptm-rolebar').appendChild(context); addRoleOptions();
   }
 
   // Các điểm nối bổ sung gọi lại nguyên hàm cũ trước/sau khi xử lý context bước 4.
@@ -330,7 +375,7 @@
   confirmKHPTM2ClerkTransfer = function () {
     const type = khptm2DeviceType, before = khptm2ClerkIssue().transferredTo;
     const result = previousClerkTransfer.apply(this, arguments), sent = khptm2ClerkIssue();
-    if (!before && sent.transferredTo) receive(type, { issue: { ...sent }, history: khptm2History, exchange: khptm2Exchange });
+    if (!before && sent.transferredTo) { receive(type, { issue: { ...sent }, history: khptm2History, exchange: khptm2Exchange }); open(type); }
     return result;
   };
   const previousConfirm = confirmTransferFromModal;
@@ -340,6 +385,37 @@
   const previousPreview = openTransferPreview;
   openTransferPreview = function (title) { if (pendingTransferAction !== 'kh4Transfer') return previousPreview.apply(this, arguments); return title.indexOf('Tờ trình') === 0 ? previewSource() : current() && current().activeFile ? previewFile(current().files.indexOf(current().activeFile)) : previewSource(); };
 
-  window.kh4 = { open, list, render, setScenario, setRole, generate, upload, approve, sign, issue, updateIssue, takeNumber, transfer, extTab, sendExchange, exchangeFileChanged, previewSource, previewSubmission, previewFile };
+  const previousRender = renderKHPTMBuild;
+  renderKHPTMBuild = function () {
+    if (khptm2Step === step4) { currentType = khptm2DeviceType; render(); return; }
+    document.getElementById('kh4Panel').classList.remove('active'); document.getElementById('kh4Context').style.display = 'none';
+    const result = previousRender.apply(this, arguments); addRoleOptions();
+    const isCoord = isKHPTMPairType() && khptmPairRecordRole === 'COORD';
+    document.querySelectorAll('#khptm2Role [data-kh4-role]').forEach(option => { option.hidden = isCoord; });
+    return result;
+  };
+  const previousSwitchRole = switchKHPTMBuildRole;
+  switchKHPTMBuildRole = function (role) {
+    if (Object.values(roles).includes(role)) {
+      open(khptm2DeviceType); const r = current();
+      if (r.stage === 'APPRAISAL' && !r.signed && !availableRoles(r).includes(role)) r.scenario = role === roles.net ? 'NET' : 'TD';
+      setRole(role); return;
+    }
+    if (khptm2Step === step4) restoreContext(current());
+    return previousSwitchRole.apply(this, arguments);
+  };
+  const previousOpenType = openKHPTMBuildType;
+  openKHPTMBuildType = function (type) { return records.has(type) ? open(type) : previousOpenType.apply(this, arguments); };
+  const previousOpenPair = openKHPTMPairRecord;
+  openKHPTMPairRecord = function (type, role) { return role !== 'COORD' && records.has(type) ? open(type) : previousOpenPair.apply(this, arguments); };
+  const previousOpenList = openKHPTMBuildModule;
+  openKHPTMBuildModule = function () { const result = previousOpenList.apply(this, arguments); refreshList(); return result; };
+  const previousReset = resetKHPTMBuildFlow;
+  resetKHPTMBuildFlow = function () {
+    const r = records.get(khptm2DeviceType); if (khptm2Step === step4) restoreContext(r);
+    if (r) r.files.forEach(file => { if (file.url) URL.revokeObjectURL(file.url); }); records.delete(khptm2DeviceType);
+    const result = previousReset.apply(this, arguments); refreshList(); return result;
+  };
+  window.kh4 = { open, render, setScenario, setRole, generate, upload, approve, sign, issue, updateIssue, takeNumber, transfer, extTab, sendExchange, exchangeFileChanged, previewSource, previewSubmission, previewFile };
   mount();
 }());
