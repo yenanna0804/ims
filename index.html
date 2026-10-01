@@ -1274,13 +1274,13 @@ let khptmPairStates={
     gnv:'812/VNPT Net-KT',
     main:{id:'KHPTM-BRCD-MAIN-2027',unit:'Ban KT',version:1,status:'Đang xây dựng'},
     coord:{id:'KHPTM-BRCD-TTP-2027',unit:'VNPT TTP',version:1,status:'Đang xây dựng'},
-    reviewTask:false,merged:false,mergedFromVersion:null
+    reviewTask:false,reviewApproved:false,merged:false,mergedFromVersion:null
   },
   'CSHT':{
     gnv:'812/VNPT Net-KT',
     main:{id:'KHPTM-CSHT-MAIN-2027',unit:'Ban KT',version:1,status:'Đang xây dựng'},
     coord:{id:'KHPTM-CSHT-TTP-2027',unit:'VNPT TTP',version:1,status:'Đang xây dựng'},
-    reviewTask:false,merged:false,mergedFromVersion:null
+    reviewTask:false,reviewApproved:false,merged:false,mergedFromVersion:null
   }
 };
 function isKHPTMPairType(type){return KHPTM_PAIR_TYPES.includes(type||khptm2DeviceType)}
@@ -1314,32 +1314,105 @@ function openKHPTMPairReviewFromHome(type){
   var nav=document.getElementById('nav-khptm');if(nav)nav.classList.add('active');
   showPage('khptm-build-process');renderKHPTMBuild();
 }
-function khptmPairMerge(){
+function khptmPairApproveReview(){
   var s=khptmPairState();
-  if(!s||s.coord.status!=='Chờ Ban KT thẩm định')return toast('Chưa có bản phối hợp ở trạng thái chờ thẩm định');
+  if(!s||s.coord.status!=='Chờ Ban KT thẩm định')return toast('Hồ sơ phối hợp không ở trạng thái chờ thẩm định');
+  s.reviewApproved=true;
+  s.coord.status='Đã duyệt - chờ Merge';
+  khptm2Log('Ban KT','Duyệt bản phối hợp VNPT TTP v'+s.coord.version+' của KHPTM '+khptm2DeviceType);
+  renderKHPTMBuild();
+  toast('Đã duyệt hồ sơ phối hợp VNPT TTP');
+}
+function ensureKHPTMPairMergeModal(){
+  if(document.getElementById('khptmPairMergeModal'))return;
+  var modal=document.createElement('div');
+  modal.id='khptmPairMergeModal';
+  modal.className='modal';
+  modal.innerHTML=
+    '<div class="modalbox" style="width:min(920px,95vw)">'+
+      '<div class="modalhead"><b>Chọn bản KHPTM chính để Gộp</b><button onclick="closeKHPTMPairMergeModal()" style="background:transparent;border:0;color:white;font-size:20px">×</button></div>'+
+      '<div class="modalbody">'+
+        '<div class="khptm-note" style="margin-bottom:10px">Chỉ hiển thị bản <b>Chính</b> có cùng <b>Văn bản GNV</b> và cùng <b>Loại thiết bị</b> với bản phối hợp VNPT TTP đang thẩm định.</div>'+
+        '<table><thead><tr><th width="55"></th><th>Mã hồ sơ</th><th>Loại thiết bị</th><th>VB GNV</th><th>Đơn vị lập</th><th>Vai trò</th><th>Phiên bản</th></tr></thead><tbody id="khptmPairMergeRows"></tbody></table>'+
+        '<div class="footer-actions"><button onclick="closeKHPTMPairMergeModal()">Đóng</button><button class="primary" onclick="confirmKHPTMPairMerge()">Đồng ý</button></div>'+
+      '</div>'+
+    '</div>';
+  document.body.appendChild(modal);
+}
+function openKHPTMPairMergeModal(){
+  var s=khptmPairState();
+  if(!s)return;
+  if(!s.reviewApproved)return toast('Ban KT cần Duyệt hồ sơ phối hợp trước khi Gộp');
+  ensureKHPTMPairMergeModal();
+  var rows=document.getElementById('khptmPairMergeRows');
+  rows.innerHTML=
+    '<tr>'+
+      '<td class="center"><input type="radio" name="khptmPairMainTarget" value="'+s.main.id+'" checked></td>'+
+      '<td><b>'+s.main.id+'</b></td>'+
+      '<td>'+khptm2DeviceType+'</td>'+
+      '<td>'+s.gnv+'</td>'+
+      '<td>Ban KT</td>'+
+      '<td><span class="badge bblue">Chính</span></td>'+
+      '<td class="center">v'+s.main.version+'</td>'+
+    '</tr>';
+  document.getElementById('khptmPairMergeModal').classList.add('show');
+}
+function closeKHPTMPairMergeModal(){
+  var m=document.getElementById('khptmPairMergeModal');if(m)m.classList.remove('show');
+}
+function confirmKHPTMPairMerge(){
+  var s=khptmPairState();
+  var selected=document.querySelector('input[name="khptmPairMainTarget"]:checked');
+  if(!selected)return toast('Chọn bản KHPTM chính cần Gộp');
+  if(selected.value!==s.main.id)return toast('Bản được chọn không cùng quan hệ VB GNV/Loại thiết bị');
+
   s.merged=true;
   s.mergedFromVersion=s.coord.version;
-  s.coord.status='Đã thẩm định & Merge';
+  s.coord.status='Đã duyệt & Merge';
   s.reviewTask=false;
   s.main.version+=1;
   s.main.status='Đang xây dựng';
+  s.main.ttpData={
+    sourceRecordId:s.coord.id,
+    sourceVersion:s.coord.version,
+    sourceUnit:'VNPT TTP',
+    gnv:s.gnv,
+    deviceType:khptm2DeviceType,
+    mergedAt:new Date().toLocaleString('vi-VN',{hour12:false})
+  };
+
+  khptm2Log('Ban KT','Gộp bản phối hợp '+s.coord.id+' v'+s.coord.version+' vào bản chính '+s.main.id+' v'+s.main.version);
+  closeKHPTMPairMergeModal();
+
   khptmPairRecordRole='MAIN';
   khptm2Step='B1';
   khptm2Role='Chuyên viên Ban KT';
-  khptm2Log('Ban KT','Chấp thuận và Merge bản phối hợp VNPT TTP v'+s.mergedFromVersion+' vào bản chính KHPTM '+khptm2DeviceType+' v'+s.main.version);
   renderKHPTMBuild();
-  toast('Đã Merge dữ liệu VNPT TTP vào phần TTP của bản chính');
+  window.scrollTo({top:0,behavior:'smooth'});
+  toast('Đã Gộp dữ liệu VNPT TTP vào bản KHPTM chính của Ban KT');
 }
 function khptmPairMainDetailHtml(){
   var s=khptmPairState();
   var ttpStatus=s.merged
     ? '<span class="badge bgreen">Đã merge từ TTP v'+s.mergedFromVersion+'</span>'
     : '<span class="badge borange">'+s.coord.status+'</span>';
+
+  var mergedData=s.merged&&s.main.ttpData
+    ? '<div style="margin-top:10px"><table><thead><tr><th colspan="2">Dữ liệu phần VNPT TTP đã được đổ vào bản chính</th></tr></thead><tbody>'+
+        '<tr><td width="220"><b>Hồ sơ nguồn</b></td><td>'+s.main.ttpData.sourceRecordId+' · v'+s.main.ttpData.sourceVersion+'</td></tr>'+
+        '<tr><td><b>Đơn vị xây dựng</b></td><td>VNPT TTP</td></tr>'+
+        '<tr><td><b>Văn bản GNV</b></td><td>'+s.main.ttpData.gnv+'</td></tr>'+
+        '<tr><td><b>Loại thiết bị</b></td><td>'+s.main.ttpData.deviceType+'</td></tr>'+
+        '<tr><td><b>Nội dung chi tiết</b></td><td>Cần khảo sát khách hàng - dữ liệu chi tiết sẽ hiển thị tại đây theo schema riêng của '+khptm2DeviceType+'.</td></tr>'+
+        '<tr><td><b>Thời điểm Merge</b></td><td>'+s.main.ttpData.mergedAt+'</td></tr>'+
+      '</tbody></table></div>'
+    : '';
+
   return '<div class="section"><h3>Chi tiết hồ sơ KHPTM</h3><div class="body">'+
     '<div class="review-grid">'+
       '<div class="review-item"><div class="k">Phần Ban KT xây dựng</div><div class="v">Cần khảo sát khách hàng</div><div class="mini">Bản chính v'+s.main.version+' · Ban KT tiếp tục cập nhật độc lập.</div></div>'+
       '<div class="review-item"><div class="k">Phần VNPT TTP</div><div class="v">'+ttpStatus+'</div><div class="mini">'+(s.merged?'Dữ liệu đã tự động đổ từ bản phối hợp TTP vào đúng phần TTP của bản chính.':'Chưa merge vào bản chính. Bản phối hợp được quản lý độc lập theo cùng VB GNV.')+'</div></div>'+
-    '</div>'+
+    '</div>'+mergedData+
   '</div></div>';
 }
 function renderKHPTMPairSpecialist(){
@@ -1392,7 +1465,10 @@ function khptmPairTopActions(host){
   }else if(khptm2Role==='Chuyên viên Ban KT'&&khptm2Step==='BPAIRREVIEW'){
     html+="<button onclick=\"toast('Mở bản phối hợp VNPT TTP v"+s.coord.version+"')\">Xem hồ sơ TTP</button>";
     html+="<button class=\"khptm-danger\" onclick=\"openKHPTM2Transfer('khpairReturnTTP')\">Yêu cầu bổ sung</button>";
-    html+="<button class=\"khptm-emphasis\" onclick=\"khptmPairMerge()\">Chấp thuận & Merge</button>";
+    html+=s.reviewApproved
+      ? "<button disabled>Đã duyệt</button>"
+      : "<button class=\"khptm-emphasis\" onclick=\"khptmPairApproveReview()\">Duyệt</button>";
+    html+="<button class=\"khptm-emphasis\" onclick=\"openKHPTMPairMergeModal()\">Gộp vào KHPTM chính</button>";
   }else if(khptm2Role==='Chuyên viên Ban KT'&&khptm2Step==='B1'){
     html+="<button onclick=\"toast('Đã lưu nháp bản chính Ban KT')\">Lưu nháp</button>";
     if(s.merged)html+="<button onclick=\"toast('Đang sử dụng dữ liệu đã Merge từ TTP v"+s.mergedFromVersion+"')\">Xem phần TTP đã Merge</button>";
@@ -2239,7 +2315,7 @@ routeKeyFromName=function(s){
 };
 const _confirmTransferKHBUILD=confirmTransfer;
 confirmTransfer=function(){
-  if(!String(pendingTransferAction||'').startsWith('khbuild'))return _confirmTransferKHBUILD();
+  if(!String(pendingTransferAction||'').startsWith('khbuild')&&!String(pendingTransferAction||'').startsWith('khpair'))return _confirmTransferKHBUILD();
 
   var sel=selectedRouteRecipients();
   if(!sel.main){switchRouteTab('receiver');return toast('Chọn 01 người xử lý chính')}
@@ -2259,9 +2335,15 @@ confirmTransfer=function(){
       ps.coord.status='Chờ Ban KT thẩm định';
       ps.reviewTask=true;
       khptm2Log('VNPT TTP','Chuyển bản phối hợp KHPTM '+khptm2DeviceType+' v'+ps.coord.version+' cho Ban KT thẩm định'+(note?' · '+note:''));
+      ps.reviewApproved=false;
       pendingTransferAction='';
-      goHome();
-      toast('Đã gửi Ban KT thẩm định; công việc đã vào Trang chủ → Danh sách công việc chờ xử lý');
+      khptmPairRecordRole='REVIEW';
+      khptm2Step='BPAIRREVIEW';
+      khptm2Role='Chuyên viên Ban KT';
+      renderKHPTMBuild();
+      document.getElementById('khptm-build-process').classList.add('active');
+      window.scrollTo({top:0,behavior:'smooth'});
+      toast('Đã chuyển Ban KT thẩm định');
       return;
 
     }else if(pendingTransferAction==='khpairReturnTTP'){
@@ -2270,6 +2352,7 @@ confirmTransfer=function(){
       }
       ps.coord.status='Yêu cầu bổ sung';
       ps.reviewTask=false;
+      ps.reviewApproved=false;
       khptm2Log('Ban KT','Yêu cầu VNPT TTP bổ sung/chỉnh sửa bản phối hợp KHPTM '+khptm2DeviceType+(note?' · '+note:''));
       khptmPairRecordRole='COORD';
       khptm2Step='BPAIRCOORD';
