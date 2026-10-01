@@ -553,7 +553,25 @@
     if (!modalSnapshot) return;
     const modal = document.getElementById('transferModal'); modal.classList.remove('kh4-route'); modal.querySelector('.route-opinion-summary').innerHTML = modalSnapshot.summary;
     modalSnapshot.rows.forEach(x => { x.row.innerHTML = x.html; x.row.style.display = x.display; });
-    document.getElementById('kh4ExtraRouteFile')?.remove(); modalSnapshot = null;
+    document.getElementById('kh4ExtraRouteFile')?.remove(); document.getElementById('kh4RouteNotice')?.remove(); modalSnapshot = null;
+  }
+  function showTCTRouteState() {
+    if (!modalSnapshot || modalSnapshot.kind !== 'tctClerk' || pendingTransferAction !== 'kh4Transfer') return;
+    const issue = khptm2ClerkIssue(), ready = W.canForwardTCT(khptm2LDTCTSigned, issue, khptm2Step);
+    let notice = document.getElementById('kh4RouteNotice');
+    if (ready) { notice?.remove(); return; }
+    if (!notice) {
+      notice = document.createElement('div'); notice.id = 'kh4RouteNotice'; notice.className = 'mini';
+      notice.setAttribute('role','status'); notice.style.marginBottom = '8px';
+      document.getElementById('routeRecipientRows').closest('table').before(notice);
+    }
+    notice.textContent = !khptm2LDTCTSigned ? 'Chưa thể chuyển TĐ: VB TCT đang chờ LĐ TCT ký. Chuyển về LĐ TCT để ký, sau đó Văn thư ban hành.' :
+      !issue.issued ? 'Chưa thể chuyển TĐ: VB TCT đã ký nhưng chưa ban hành. Đóng popup, chọn Ban hành, rồi mở Chuyển.' :
+      'Chưa thể chuyển TĐ: hồ sơ chưa ở trạng thái chờ chuyển văn bản đã ban hành.';
+    ['clerk','leader'].forEach(key => {
+      const radio = document.querySelector('#routeRecipientRows input[name="routeMain"][value="khw_' + key + '"]');
+      if (radio) { radio.disabled = true; radio.checked = false; radio.closest('tr').title = notice.textContent; }
+    });
   }
   function confirmTransfer() {
     const r = current(), snap = modalSnapshot;
@@ -567,7 +585,7 @@
       const issue = khptm2ClerkIssue();
       if (!W.tctClerkRecipients(issue).includes(recipient)) return toast('Trạng thái văn bản đã thay đổi; mở lại popup Chuyển');
       if (['clerk','leader'].includes(recipient)) {
-        if (!W.canForwardTCT(khptm2LDTCTSigned, issue, khptm2Step)) return toast('LĐ TCT ký và Văn thư TCT ban hành văn bản trước khi chuyển Tập đoàn');
+        if (!W.canForwardTCT(khptm2LDTCTSigned, issue, khptm2Step)) { showTCTRouteState(); return toast('LĐ TCT ký và Văn thư TCT ban hành văn bản trước khi chuyển Tập đoàn'); }
         const issuedFile = 'VB_TCT_trinh_TD_KHPTM_' + tag(snap.type) + '_2027_' + issue.number + '.pdf';
         if (!selectedFiles.includes(issuedFile)) { switchRouteTab('files'); return toast('Chọn văn bản đã ban hành để chuyển'); }
         // Đi qua handler cũ để giữ nguyên kiểm tra, metadata và điểm nối bước 4.
@@ -789,6 +807,11 @@
   };
   const previousConfirm = confirmTransferFromModal;
   confirmTransferFromModal = function () { return pendingTransferAction === 'kh4Transfer' ? confirmTransfer() : previousConfirm.apply(this, arguments); };
+  const previousRenderRecipients = renderRouteRecipients;
+  renderRouteRecipients = function () {
+    const result = previousRenderRecipients.apply(this, arguments);
+    showTCTRouteState(); return result;
+  };
   const previousHide = hideTransferModal;
   hideTransferModal = function () { restoreModal(); return previousHide.apply(this, arguments); };
   const previousRender = renderKHPTMBuild;
