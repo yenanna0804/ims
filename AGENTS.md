@@ -22,6 +22,8 @@ Giữ cùng chức năng/danh sách/hồ sơ khi thêm bước xử lý. Màn l�
 
 ## Rà soát KHPTM đã chốt (01/10/2026)
 
+LĐ TCT chuyển Văn thư TCT không tự khởi tạo nhánh rà soát. Văn thư chọn LĐ ĐV rà soát khi cần rà soát; hoặc ban hành văn bản TCT đã ký rồi chuyển Văn thư Tập đoàn/LĐ Tập đoàn theo luồng trình TĐ cũ. Popup có đủ các hướng, nhưng chọn TĐ trước khi ký/ban hành phải bị chặn tại handler. Khi văn bản đã ban hành và chuyển TĐ, không phát hành/chuyển trùng. Giữ riêng việc ghi nhận QĐ TĐ trên nhánh NET.
+
 Áp dụng cho Core di động, Vô tuyến, BRCĐ và CSHT:
 
 | Người nhận và nguồn chuyển | Nhiệm vụ / quyền | Hướng chuyển |

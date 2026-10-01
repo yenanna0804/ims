@@ -23,6 +23,25 @@ test('chỉ có một actor Văn thư TCT và một actor Văn thư Tập đoàn
     [['clerk','Văn thư Tập đoàn'],['tctClerk','Văn thư TCT']]);
 });
 for (const type of ['Core di động', 'Vô tuyến', 'BRCĐ', 'CSHT']) {
+  test(`${type}: LĐ TCT chuyển Văn thư không tự đi nhánh rà soát`, () => {
+    const r = W.create(type,'REVIEW');
+    r.report = {id:'report-signed',mainSigned:true};
+    W.receiveTCTClerk(r,{note:'Ban hành và chuyển TĐ'});
+    assert.equal(r.phase,'LEGACY'); assert.equal(r.owner,'tctClerk');
+    assert.equal(r.receipt.from,'tct'); assert.equal(r.receipt.purpose,'TCT_ROUTE');
+    assert.equal(W.reviewTask(r),''); assert.equal(r.report.mainSigned,true);
+    assert.deepEqual(Array.from(W.tctClerkRecipients({})), ['reviewLead','reviewCoLead','tct','originalPM','clerk','leader']);
+    assert.deepEqual(Array.from(W.tctClerkRecipients({issued:true})), ['clerk','leader']);
+    assert.deepEqual(Array.from(W.tctClerkRecipients({issued:true,transferredTo:'LĐ Tập đoàn'})), []);
+  });
+  test(`${type}: chỉ chuyển TĐ sau khi văn bản TCT ký và ban hành`, () => {
+    assert.equal(W.canForwardTCT(false,{issued:false},'B4'),false);
+    assert.equal(W.canForwardTCT(true,{issued:false},'B4'),false);
+    assert.equal(W.canForwardTCT(false,{issued:true},'DONE'),false);
+    assert.equal(W.canForwardTCT(true,{issued:true},'B4'),false);
+    assert.equal(W.canForwardTCT(true,{issued:true},'DONE'),true);
+    assert.equal(W.canForwardTCT(true,{issued:true,transferredTo:'Văn thư Tập đoàn'},'DONE'),false);
+  });
   test(`${type}: cùng Văn thư TCT nhưng điều phối rà soát khác ghi nhận ban hành`, () => {
     const r = W.create(type, 'REVIEW');
     W.receiveReview(r, 'tct', 'tctClerk', 'DISPATCH_REVIEW');

@@ -20,7 +20,7 @@
     CO_REVIEW: 'Rà soát phối hợp', RETURN_RESULT: 'Tổng hợp kết quả phối hợp', SIGN_REPORT: 'Ký chính thức báo cáo',
     INITIAL_REPORT: 'Ký nháy báo cáo', SUBMIT_SIGNED: 'Trình báo cáo đã ký', REVISE_REPORT: 'Sửa báo cáo', RETURN_SOURCE: 'Sửa hồ sơ trình'
   };
-  const transferPurposes = { ...reviewPurposes, REGISTER_TD_ISSUE: 'Ghi nhận ban hành Quyết định TĐ đã ký',
+  const transferPurposes = { ...reviewPurposes, TCT_ROUTE: 'Ban hành / luân chuyển hồ sơ TCT', REGISTER_TD_ISSUE: 'Ghi nhận ban hành Quyết định TĐ đã ký',
     RETURN_TCT: 'Tiếp nhận hồ sơ TĐ chuyển về TCT', PASS_RESULTS: 'Chuyển kết quả TĐ về đơn vị lập', APP_ROUTE: 'Xử lý hồ sơ thẩm định TĐ' };
   function receipt(r, from, to, purpose, details) {
     r.reviewTransferSequence = (r.reviewTransferSequence || 0) + 1;
@@ -35,6 +35,16 @@
       REVISE_REPORT: 'WORK', RETURN_SOURCE: 'LEGACY' }[purpose];
     if (!r.phase) throw new Error('Mục đích chuyển không hợp lệ');
   }
+  function receiveTCTClerk(r, details) {
+    // Chuyển Văn thư chưa phải là lựa chọn nhánh rà soát.
+    receipt(r, 'tct', 'tctClerk', 'TCT_ROUTE', details);
+    r.phase = 'LEGACY'; r.owner = r.viewer = 'tctClerk';
+  }
+  function tctClerkRecipients(issue) {
+    if (issue.transferredTo) return [];
+    return issue.issued ? ['clerk','leader'] : ['reviewLead','reviewCoLead','tct','originalPM','clerk','leader'];
+  }
+  const canForwardTCT = (signed, issue, step) => !!signed && !!issue.issued && !issue.transferredTo && step === 'DONE';
   function reviewTask(r) {
     const x = r.receipt; if (!x || x.to !== r.owner) return '';
     if (r.owner === 'tctClerk' && x.purpose === 'DISPATCH_REVIEW') return 'dispatch';
@@ -190,7 +200,7 @@
     receipt(r, viewer, recipient, previousPhase === 'OFFLINE' ? 'REGISTER_TD_ISSUE' : previousPhase === 'ISSUED' ? 'PASS_RESULTS' : recipient === 'tctClerk' ? 'RETURN_TCT' : 'APP_ROUTE', details);
     if (r.phase !== 'DONE') r.viewer = r.owner; return { consultation: false };
   }
-  root.KHWorkflow = { roles, units, reviewPurposes, transferPurposes, reviewTask, receiveReview, canViewReviewReport, create, owns, canEdit, canPrepare, canComplete, canSign, canIssue, allowed, sign, complete, rejectReport, returnSource, transfer };
+  root.KHWorkflow = { roles, units, reviewPurposes, transferPurposes, reviewTask, receiveReview, receiveTCTClerk, tctClerkRecipients, canForwardTCT, canViewReviewReport, create, owns, canEdit, canPrepare, canComplete, canSign, canIssue, allowed, sign, complete, rejectReport, returnSource, transfer };
 }(typeof window === 'undefined' ? globalThis : window));
 
 (function () {
@@ -488,8 +498,8 @@
       if (khptm2Role !== 'LĐTCT' || khptm2Step !== 'B3') return;
       allowed = ['reviewLead', 'reviewCoLead', 'tctClerk'];
     } else if (kind === 'tctClerk') {
-      if (khptm2Role !== 'Văn thư' || khptm2ClerkIssue().issued && !(r && r.returnedFromTD)) return;
-      allowed = ['reviewLead', 'reviewCoLead', 'tct', 'originalPM'];
+      if (khptm2Role !== 'Văn thư' || !['B4','DONE'].includes(khptm2Step)) return;
+      allowed = W.tctClerkRecipients(khptm2ClerkIssue());
     } else if (kind === 'returnSource') {
       if (!r || !W.owns(r, r.viewer) || r.mode !== 'REVIEW' || r.viewer !== 'reviewPM' || W.reviewTask(r) !== 'work') return;
       allowed = ['originalPM'];
@@ -501,10 +511,11 @@
       allowed, summary: modal.querySelector('.route-opinion-summary').innerHTML,
       rows: ['routeSignFileRow', 'routeIssueFileRow'].map(id => { const row = document.getElementById(id); return { row, html: row.innerHTML, display: row.style.display }; }) };
     modal.classList.add('kh4-route'); document.getElementById('routeReceiverSearch').value = ''; renderRouteRecipients();
-    const files = [{ name: 'VB_TCT_trinh_TD_KHPTM_' + tag(type) + '_2027.pdf', preview: 'kh4.previewSource()' }];
+    const issue = khptm2ClerkIssue(), legacy = kind === 'tct' || kind === 'tctClerk';
+    const files = [{ name: 'VB_TCT_trinh_TD_KHPTM_' + tag(type) + '_2027' + (kind === 'tctClerk' && issue.issued ? '_' + issue.number : '') + '.pdf', preview: legacy ? "openKHPTM2Preview('outgoing')" : 'kh4.previewSource()' }];
     if (r && r.report && W.canViewReviewReport(r, r.viewer) && r.mode === (kind === 'workflow' || kind === 'returnSource' ? r.mode : 'REVIEW')) files.push({ name: r.report.name, preview: "kh4.previewDocument('report')" });
     if (r && r.decision && kind === 'workflow') files.push({ name: r.decision.name, preview: "kh4.previewDocument('decision')" });
-    if (files.length === 1) files.push({ name: 'To_trinh_LDTCT_KHPTM_' + tag(type) + '_2027.docx', preview: 'kh4.previewSubmission()' });
+    if (files.length === 1) files.push({ name: 'To_trinh_LDTCT_KHPTM_' + tag(type) + '_2027.docx', preview: legacy ? "openKHPTM2Preview('submission')" : 'kh4.previewSubmission()' });
     modalSnapshot.rows.forEach((entry, i) => {
       entry.row.querySelector('.route-file-name').textContent = files[i].name;
       entry.row.querySelector('.route-check').checked = true; entry.row.style.display = '';
@@ -535,6 +546,24 @@
     const note = document.getElementById('transferNote').value.trim();
     if ((snap.kind === 'returnSource' || r && r.mode === 'REVIEW' && snap.kind === 'workflow' && recipient === 'originalPM') && !note) { switchRouteTab('opinion'); return toast('Ghi yêu cầu sửa/bổ sung hồ sơ trước khi trả PM lập'); }
     const selectedFiles = [...document.querySelectorAll('#transferModal .route-file-name')].filter(el => el.closest('.route-file-tools')?.style.display !== 'none' && el.closest('.route-file-tools')?.querySelector('.route-check')?.checked).map(el => el.textContent);
+    if (snap.kind === 'tctClerk') {
+      const issue = khptm2ClerkIssue();
+      if (!W.tctClerkRecipients(issue).includes(recipient)) return toast('Trạng thái văn bản đã thay đổi; mở lại popup Chuyển');
+      if (['clerk','leader'].includes(recipient)) {
+        if (!W.canForwardTCT(khptm2LDTCTSigned, issue, khptm2Step)) return toast('LĐ TCT ký và Văn thư TCT ban hành văn bản trước khi chuyển Tập đoàn');
+        const issuedFile = 'VB_TCT_trinh_TD_KHPTM_' + tag(snap.type) + '_2027_' + issue.number + '.pdf';
+        if (!selectedFiles.includes(issuedFile)) { switchRouteTab('files'); return toast('Chọn văn bản đã ban hành để chuyển'); }
+        // Đi qua handler cũ để giữ nguyên kiểm tra, metadata và điểm nối bước 4.
+        const id = recipient === 'clerk' ? 'kh2tdclerk' : 'kh2tdleader';
+        if (!routeRecipients.some(x => x.id === id)) routeRecipients.push({ ...selected.main, id });
+        const checked = document.querySelector('input[name="routeMain"]:checked');
+        checked.value = id;
+        // Handler cũ kiểm tra row này là văn bản ban hành.
+        const issueRow = document.getElementById('routeIssueFileRow'), signRow = document.getElementById('routeSignFileRow');
+        const issueHtml = issueRow.innerHTML; issueRow.innerHTML = signRow.innerHTML; signRow.innerHTML = issueHtml;
+        return confirmKHPTM2ClerkTransfer();
+      }
+    }
     if (r && snap.kind === 'workflow' && ['SIGN_MAIN', 'SIGN_CO', 'REVIEW_SUBMIT', 'DECISION_ROUTE', 'SIGN_QD', 'CLERK_SIGNED', 'ISSUED', 'OFFLINE'].includes(r.phase)) {
       const required = ['SIGN_MAIN','SIGN_CO','REVIEW_SUBMIT'].includes(r.phase) ? r.report : r.decision;
       if (required && !selectedFiles.includes(required.name)) { switchRouteTab('files'); return toast('Chọn văn bản cần chuyển: ' + required.name); }
@@ -546,8 +575,10 @@
       pendingTransferAction = ''; hideTransferModal();
       if (recipient.startsWith('review')) { beginReview(recipient, snap.kind === 'tct' ? 'tct' : 'tctClerk', { note, files: selectedFiles }); return; }
       if (recipient === 'tctClerk') {
-        if (!khptm2LDTCTSigned) { beginReview('tctClerk', 'tct', { note, files: selectedFiles }); return; }
         khptm2Role = 'Văn thư'; khptm2Step = 'B4';
+        const context = ensure(snap.type, 'REVIEW', 'TD');
+        context.sourceContext = captureContext(); context.history = khptm2History; context.exchange = khptm2Exchange;
+        W.receiveTCTClerk(context, { note, files: selectedFiles });
       } else if (recipient === 'tct') { khptm2Role = 'LĐTCT'; khptm2Step = 'B3'; }
       else { khptm2Role = 'Chuyên viên Ban KT'; khptm2Step = 'B1'; khptm2UnitLeaderSigned = false; khptm2LDTCTSigned = false; banDrafts.delete(snap.type); }
       renderKHPTMBuild(); return;
@@ -671,8 +702,8 @@
       host.innerHTML += button('Chuyển', "kh4.transfer('tct')", true, 'khptm-emphasis');
       if (r && r.report && r.report.reportMode === 'REVIEW') host.innerHTML = button('Xem Báo cáo rà soát', "kh4.previewDocument('report')", true) + host.innerHTML;
     }
-    if (khptm2Role === 'Văn thư' && (!khptm2ClerkIssue().issued || r && r.returnedFromTD)) {
-      document.getElementById('khptm2TopActions').innerHTML = button('Ban hành', 'issueKHPTM2()', khptm2LDTCTSigned && khptm2Step === 'B4' && !khptm2ClerkIssue().issued, 'khptm-emphasis') + button('Chuyển', "kh4.transfer('tctClerk')", true, 'khptm-emphasis');
+    if (khptm2Role === 'Văn thư' && ['B4','DONE'].includes(khptm2Step)) {
+      document.getElementById('khptm2TopActions').innerHTML = button('Ban hành', 'issueKHPTM2()', khptm2LDTCTSigned && khptm2Step === 'B4' && !khptm2ClerkIssue().issued, 'khptm-emphasis') + button('Chuyển', "kh4.transfer('tctClerk')", W.tctClerkRecipients(khptm2ClerkIssue()).length > 0, 'khptm-emphasis');
     }
     // Thay dummy sai ngữ cảnh; không đổi cấu trúc Thông tin mở rộng.
     document.querySelectorAll('#khptm2Extended .pm-ext-table tbody tr').forEach(row => {
@@ -684,6 +715,10 @@
     });
     if (r) {
       currentType = type;
+      if (r.phase === 'LEGACY' && r.owner === 'tctClerk' && r.receipt?.purpose === 'TCT_ROUTE' && khptm2Role === 'Văn thư') {
+        r.sourceContext = captureContext();
+        r.sourceIssue = { ...khptm2ClerkIssue() }; r.sourceHtml = sourcePaper(type, r.sourceIssue, khptm2LDTCTSigned);
+      }
       if (r.phase === 'LEGACY' && r.receipt && (r.owner === 'tctClerk' ? khptm2Role === 'Văn thư' : roles[r.owner] === khptm2Role)) {
         document.getElementById('kh4Context').style.display = 'contents';
         document.getElementById('kh4Scenario').style.display = 'none'; document.getElementById('kh4ScenarioLabel').style.display = 'none';
