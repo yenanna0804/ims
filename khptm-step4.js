@@ -441,7 +441,7 @@
     if (!recipient || !snap.allowed.includes(recipient)) { switchRouteTab('receiver'); return toast('Chọn 01 người xử lý chính thuộc tuyến xử lý hiện tại'); }
     const note = document.getElementById('transferNote').value.trim();
     if (snap.kind === 'returnSource' && !note) { switchRouteTab('opinion'); return toast('Ghi yêu cầu sửa/bổ sung hồ sơ trước khi trả PM lập'); }
-    const selectedFiles = [...document.querySelectorAll('#transferModal .route-file-name')].filter(el => el.closest('tr').style.display !== 'none' && el.closest('tr').querySelector('.route-check')?.checked).map(el => el.textContent);
+    const selectedFiles = [...document.querySelectorAll('#transferModal .route-file-name')].filter(el => el.closest('.route-file-tools')?.style.display !== 'none' && el.closest('.route-file-tools')?.querySelector('.route-check')?.checked).map(el => el.textContent);
     if (r && snap.kind === 'workflow' && ['SIGN_MAIN', 'SIGN_CO', 'DECISION_ROUTE', 'SIGN_QD', 'CLERK_SIGNED', 'ISSUED', 'OFFLINE'].includes(r.phase)) {
       const required = ['SIGN_MAIN','SIGN_CO'].includes(r.phase) ? r.report : r.decision;
       if (required && !selectedFiles.includes(required.name)) { switchRouteTab('files'); return toast('Chọn văn bản cần chuyển: ' + required.name); }
@@ -579,7 +579,7 @@
     document.querySelectorAll('#khptm2Extended .pm-ext-table tbody tr').forEach(row => {
       if (row.textContent.includes('Du_thao_QD') || row.textContent.includes('Dự thảo QĐ TĐ')) {
         const name = row.querySelector('.pm-ext-file'); if (name) { name.textContent = 'Du_thao_VB_TCT_trinh_TD_KHPTM_' + tag(type) + '_2027.docx'; name.setAttribute('onclick', "openKHPTM2Preview('outgoing')"); }
-        const group = row.cells[9]?.querySelector('option'); if (group) group.textContent = 'Dự thảo VB trình TĐ';
+        const group = row.cells[9]?.querySelector('option'); if (group) group.textContent = 'Dự thảo VB trình TĐ'; if (row.cells[7]) row.cells[7].textContent = 'VNPT Net'; if (row.cells[8]) row.cells[8].textContent = banState().initialled ? 'LĐ Ban KT – ký nháy' : 'LĐTCT';
         row.cells[15]?.querySelector('button')?.setAttribute('onclick', "openKHPTM2Preview('outgoing')");
       }
     });
