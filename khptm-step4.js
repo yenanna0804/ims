@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
   const roles = {
-    reviewClerk: 'Văn thư TCT (điều phối rà soát)',
+    reviewClerk: 'Văn thư',
     reviewLead: 'LĐ ĐV rà soát chủ trì (Ban KHĐT)', reviewPM: 'PM rà soát chủ trì (Ban KHĐT)',
     reviewCoLead: 'LĐ ĐV rà soát phối hợp (Ban KT)', reviewCoPM: 'PM rà soát phối hợp (Ban KT)',
     leader: 'LĐ Tập đoàn', clerk: 'Văn thư Tập đoàn',
@@ -113,7 +113,7 @@
   const types = ['Core di động', 'Vô tuyến', 'BRCĐ', 'CSHT'];
   const records = new Map(), listBadges = new WeakMap(), banDrafts = new Map();
   const step4 = 'KHPTM_TD';
-  const newKeys = Object.keys(roles).filter(k => !['tct', 'tctClerk', 'originalPM', 'consultKT', 'consultKH', 'consultTC'].includes(k));
+  const newKeys = Object.keys(roles).filter(k => !['reviewClerk', 'tct', 'tctClerk', 'originalPM', 'consultKT', 'consultKH', 'consultTC'].includes(k));
   let currentType = types[0], nextNumber = 100, exchangeAttachment = null, modalSnapshot = null;
   const now = () => new Date().toLocaleString('vi-VN', { hour12: false });
   const tag = type => ({ 'Core di động': 'Core', 'Vô tuyến': 'Vo_tuyen', 'BRCĐ': 'BRCD', 'CSHT': 'CSHT' })[type];
@@ -283,7 +283,10 @@
       const locked = !W.canIssue(r, r.viewer) ? ' readonly' : '';
       html += '<div class="khptm-issue-grid" style="margin-bottom:12px"><div><label>Số quyết định <span class="req">*</span></label><div style="display:flex;gap:6px"><input id="kh4IssueNumber" value="' + esc(r.issue.number) + '" oninput="kh4.updateIssue()"' + locked + ' style="min-width:0;flex:1">' + button('Lấy số', 'kh4.takeNumber()', !locked) + '</div></div><div><label>Hậu tố</label><input id="kh4IssueSuffix" value="' + esc(r.issue.suffix) + '" oninput="kh4.updateIssue()"' + locked + '></div><div><label>Ngày ban hành <span class="req">*</span></label><input id="kh4IssueDate" type="date" value="' + esc(r.issue.date) + '" oninput="kh4.updateIssue()"' + locked + '></div><div><label>Số eOffice/VBKS</label><input id="kh4IssueEoffice" value="' + esc(r.issue.eoffice) + '" oninput="kh4.updateIssue()"' + locked + '></div></div>';
     }
-    if (r.viewer === 'reviewClerk') return html + '<div class="khptm-doc-preview"><div class="khptm-paper">' + r.sourceHtml + '</div></div></div></div>';
+    if (r.viewer === 'reviewClerk') {
+      html += '<div class="khptm-issue-grid" style="margin-bottom:12px"><div><label>Số văn bản</label><input value="' + esc(r.sourceIssue.number || '') + '" readonly></div><div><label>Hậu tố</label><input value="' + esc(r.sourceIssue.suffix || 'KT') + '" readonly></div><div><label>Ngày ban hành</label><input type="date" value="' + esc(r.sourceIssue.date || '') + '" readonly></div><div><label>Số eOffice/VBKS</label><input value="' + esc(r.sourceIssue.eoffice || '') + '" readonly></div></div>';
+      return html + '<div class="khptm-doc-preview"><div class="khptm-paper">' + r.sourceHtml + '</div></div></div></div>';
+    }
     html += '<div class="toolbar" style="margin-bottom:10px"><label for="kh4Document">Văn bản xem trước</label><select id="kh4Document" onchange="kh4.selectDocument(this.value)"><option value="report"' + (r.previewKind === 'report' ? ' selected' : '') + '>' + (r.mode === 'REVIEW' ? 'Báo cáo rà soát' : 'Báo cáo thẩm định') + '</option>' + (r.mode === 'APPRAISAL' ? '<option value="decision"' + (r.previewKind === 'decision' ? ' selected' : '') + '>Quyết định Tập đoàn</option><option value="source"' + (r.previewKind === 'source' ? ' selected' : '') + '>VB TCT trình Tập đoàn</option>' : '<option value="source"' + (r.previewKind === 'source' ? ' selected' : '') + '>Tờ trình LĐ TCT</option>') + '</select>';
     if (file) html += '<a class="linklike" href="' + file.url + '" download="' + esc(file.name) + '">Tải văn bản</a>';
     if (isEditor(r) && r.previewKind !== 'source') {
@@ -394,7 +397,7 @@
     let allowed;
     if (kind === 'tct') {
       if (khptm2Role !== 'LĐTCT' || khptm2Step !== 'B3') return;
-      allowed = ['reviewClerk', 'reviewLead', 'reviewCoLead', 'tctClerk'];
+      allowed = ['reviewLead', 'reviewCoLead', 'tctClerk'];
     } else if (kind === 'tctClerk') {
       if (khptm2Role !== 'Văn thư' || khptm2ClerkIssue().issued && !(r && r.returnedFromTD)) return;
       allowed = ['reviewLead', 'reviewCoLead', 'tct', 'originalPM'];
@@ -487,7 +490,7 @@
   function setScenario(value) {
     const r = current();
     if (!r || r.mode !== 'APPRAISAL' || !['NET','TD'].includes(value) || r.files.some(f => f.reportMode === 'APPRAISAL') || !['INBOX','DISPATCH','OFFLINE'].includes(r.phase)) { render(); return toast('Chỉ đổi kịch bản trước khi xử lý thẩm định'); }
-    r.scenario = value; r.owner = value === 'NET' ? 'net' : 'leader'; r.viewer = r.owner; r.phase = value === 'NET' ? 'OFFLINE' : 'INBOX'; render();
+    r.scenario = value; r.owner = value === 'NET' ? 'net' : (r.sourceIssue.transferredTo || '').includes('Văn thư') ? 'clerk' : 'leader'; r.viewer = r.owner; r.phase = value === 'NET' ? 'OFFLINE' : r.owner === 'clerk' ? 'DISPATCH' : 'INBOX'; render();
   }
   function setRole(key) { const r = current(); if (r && availableKeys(r).includes(key)) { r.viewer = key; render(); } }
   function addRoleOptions() {
@@ -635,7 +638,9 @@
   };
   const previousSwitchRole = switchKHPTMBuildRole;
   switchKHPTMBuildRole = function (role) {
-    const key = newKeys.find(k => roles[k] === role), type = khptm2DeviceType;
+    const type = khptm2DeviceType;
+    if (role === 'Văn thư' && khptm2Step === step4 && current().mode === 'REVIEW') return setRole('reviewClerk');
+    const key = newKeys.find(k => roles[k] === role);
     if (key) {
       if (khptm2Step === step4) { const r = current(); if (availableKeys(r).includes(key)) return setRole(key); }
       open(type, key); return;
