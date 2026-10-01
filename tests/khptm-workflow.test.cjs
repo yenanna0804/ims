@@ -23,6 +23,39 @@ test('chỉ có một actor Văn thư TCT và một actor Văn thư Tập đoàn
     [['clerk','Văn thư Tập đoàn'],['tctClerk','Văn thư TCT']]);
 });
 for (const type of ['Core di động', 'Vô tuyến', 'BRCĐ', 'CSHT']) {
+  test(`${type}: chuyển TĐ mở đúng người nhận, chỉ xem VB TCT nguồn`, () => {
+    for (const target of ['clerk','leader']) {
+      const r = W.create(type,'APPRAISAL','TD');
+      W.receiveGroupSource(r,target,{note:'Tiếp nhận hồ sơ trình TĐ'});
+      assert.equal(r.owner,target); assert.equal(r.viewer,target); assert.equal(r.scenario,'TD');
+      assert.equal(r.phase,target === 'clerk' ? 'DISPATCH' : 'INBOX');
+      assert.equal(r.receipt.from,'tctClerk'); assert.equal(W.canViewAppraisalDocuments(r,target),false);
+      assert.equal(W.canSign(r,target),false);
+      // File cũ trong hồ sơ không tự mở thao tác thẩm định.
+      r.report = {id:'old-report'}; r.decision = {id:'old-decision'};
+      assert.equal(W.canViewAppraisalDocuments(r,target),false);
+      if (target === 'clerk') {
+        assert.ok(recipients(r,'clerk').includes('leader'));
+        W.transfer(r,'clerk','leader');
+        assert.equal(r.phase,'INBOX'); assert.equal(r.receipt.from,'clerk');
+        assert.equal(W.canViewAppraisalDocuments(r,'leader'),false);
+        assert.equal(W.canSign(r,'leader'),false);
+      }
+    }
+  });
+  test(`${type}: tài liệu đơn vị thẩm định qua Văn thư rồi trình LĐ TĐ`, () => {
+    const r = W.create(type,'APPRAISAL','TD');
+    W.receiveGroupSource(r,'clerk'); W.transfer(r,'clerk','appraisalLead'); W.transfer(r,'appraisalLead','appraisalPM');
+    r.report = {id:'app-report-v1'}; r.decision = {id:'app-decision-v1'};
+    W.complete(r,'appraisalPM'); W.transfer(r,'appraisalPM','appraisalLead');
+    W.sign(r,'appraisalLead'); W.transfer(r,'appraisalLead','clerk');
+    assert.equal(r.receipt.from,'appraisalLead'); assert.equal(W.canViewAppraisalDocuments(r,'clerk'),true);
+    W.transfer(r,'clerk','leader');
+    assert.equal(r.phase,'SIGN_QD'); assert.equal(W.canViewAppraisalDocuments(r,'leader'),true);
+    assert.equal(W.canSign(r,'leader'),true);
+    r.decision.id = 'app-decision-v2';
+    assert.equal(W.canViewAppraisalDocuments(r,'leader'),false); assert.equal(W.canSign(r,'leader'),false);
+  });
   test(`${type}: LĐ TCT chuyển Văn thư không tự đi nhánh rà soát`, () => {
     const r = W.create(type,'REVIEW');
     r.report = {id:'report-signed',mainSigned:true};

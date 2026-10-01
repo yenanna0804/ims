@@ -24,6 +24,8 @@ Giữ cùng chức năng/danh sách/hồ sơ khi thêm bước xử lý. Màn l�
 
 LĐ TCT chuyển Văn thư TCT không tự khởi tạo nhánh rà soát. Văn thư chọn LĐ ĐV rà soát khi cần rà soát; hoặc ban hành văn bản TCT đã ký rồi chuyển Văn thư Tập đoàn/LĐ Tập đoàn theo luồng trình TĐ cũ. Popup có đủ các hướng, nhưng chọn TĐ trước khi ký/ban hành phải bị chặn tại handler. Khi văn bản đã ban hành và chuyển TĐ, không phát hành/chuyển trùng. Giữ riêng việc ghi nhận QĐ TĐ trên nhánh NET.
 
+Khi Văn thư TCT chuyển tới TĐ, điểm nối phải mở ngay màn của đúng người nhận đã chọn: Văn thư TĐ hoặc LĐ TĐ, không mặc định mở NET ghi nhận. Hai actor này nhận hồ sơ nguồn chỉ xem VB TCT trình TĐ; Văn thư TĐ được chuyển tiếp LĐ TĐ. Chỉ khi nhận bộ tài liệu từ đơn vị thẩm định (có thể qua Văn thư điều phối) mới hiển thị Báo cáo thẩm định/dự thảo QĐ và quyền ký QĐ theo trạng thái. Phiếu chuyển phải liên kết đúng phiên bản tài liệu; không suy quyền từ việc hồ sơ có sẵn file cũ. Kịch bản NET xử lý thay vẫn được chọn riêng và giữ luồng ghi nhận ngoài OnePMS.
+
 Áp dụng cho Core di động, Vô tuyến, BRCĐ và CSHT:
 
 | Người nhận và nguồn chuyển | Nhiệm vụ / quyền | Hướng chuyển |
