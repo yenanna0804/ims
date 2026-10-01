@@ -222,8 +222,7 @@
 .kh2-detail-heading .mini{margin-top:3px}
 .kh2-detail-badges{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .kh2-detail-content{padding:12px}
-.kh2-detail-content .kh2-source-card{padding:14px 11px}
-.kh2-detail-content .kh2-source-card .v{color:var(--red)}
+.kh2-detail-placeholder{font-weight:700;color:var(--red)}
 .kh2-detail-merge{display:flex;gap:8px 16px;flex-wrap:wrap;margin-top:10px;color:var(--muted);font-size:12px}
 .kh2-request-status{font-weight:700;color:#a35d00}.kh2-request-status.done{color:#187a42}
 .kh2-modal-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 14px}.kh2-modal-grid .full{grid-column:1/-1}
@@ -1420,14 +1419,14 @@ function khptmPairMainDetailHtml(){
           '<div class="kh2-detail-heading"><span class="kh2-detail-number bblue">I</span><div><h4 id="kh2DetailVN2">Thông tin VN2, hệ thống phụ trợ</h4><div class="mini">Do Ban KT lập</div></div></div>'+
           '<div class="kh2-detail-badges"><span class="badge bblue">Ban KT</span></div>'+
         '</div>'+
-        '<div class="kh2-detail-content"><div class="kh2-source-card"><div class="v">Cần khảo sát khách hàng</div></div></div>'+
+        '<div class="kh2-detail-content"><div class="kh2-detail-placeholder">Cần khảo sát khách hàng</div></div>'+
       '</section>'+
       '<section class="kh2-detail-section" aria-labelledby="kh2DetailTTP">'+
         '<div class="kh2-detail-head">'+
           '<div class="kh2-detail-heading"><span class="kh2-detail-number bgreen">II</span><div><h4 id="kh2DetailTTP">Thông tin ManE, PON, Site router</h4><div class="mini">Do VNPT TTP lập</div></div></div>'+
           '<div class="kh2-detail-badges"><span class="badge bgreen">VNPT TTP</span>'+ttpStatus+'</div>'+
         '</div>'+
-        '<div class="kh2-detail-content"><div class="kh2-source-card"><div class="v">Cần khảo sát khách hàng</div></div>'+mergedData+'</div>'+
+        '<div class="kh2-detail-content"><div class="kh2-detail-placeholder">Cần khảo sát khách hàng</div>'+mergedData+'</div>'+
       '</section>'+
     '</div>'+
   '</div></div>';
