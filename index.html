@@ -1464,7 +1464,12 @@ function renderKHPTMPairTTP(){
     '<div class="section"><h3>Thông tin hồ sơ</h3><div class="body">'+
       '<div class="kh2-info-grid">'+
         '<div><label>Văn bản GNV <span class="req">*</span></label><select disabled><option selected>'+s.gnv+' - GNV phối hợp XD KHPTM 2027</option></select></div>'+
-        '<div><label>Loại thiết bị</label><input value="'+khptm2DeviceType+'" readonly></div>'+
+        '<div><label>Loại thiết bị</label><select id="khptm2TTPDeviceType" onchange="if(isKHPTMPairType(this.value)){openKHPTMPairRecord(this.value,\'COORD\')}else{khptm2TypeChanged(this.value)}" '+(khptm2Step==='BPAIRCOORD'&&(s.coord.status==='Đang xây dựng'||s.coord.status==='Yêu cầu bổ sung')?'':'disabled')+'>'+
+          '<option '+(khptm2DeviceType==='Core di động'?'selected':'')+'>Core di động</option>'+
+          '<option '+(khptm2DeviceType==='Vô tuyến'?'selected':'')+'>Vô tuyến</option>'+
+          '<option '+(khptm2DeviceType==='BRCĐ'?'selected':'')+'>BRCĐ</option>'+
+          '<option '+(khptm2DeviceType==='CSHT'?'selected':'')+'>CSHT</option>'+
+        '</select></div>'+
         '<div><label>Đơn vị lập</label><input value="VNPT TTP" disabled style="background:#eef1f4;color:#6b7280;border-color:#cfd5db;cursor:not-allowed;opacity:1"></div>'+
         '<div><label>Vai trò theo VB GNV</label><input value="Phối hợp" disabled style="background:#eef1f4;color:#6b7280;border-color:#cfd5db;cursor:not-allowed;opacity:1"></div>'+
         '<div><label>Năm kế hoạch</label><select><option selected>2027</option><option>2026</option></select></div>'+
