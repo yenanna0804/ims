@@ -2,18 +2,17 @@
 (function (root) {
   'use strict';
   const roles = {
-    reviewClerk: 'Văn thư',
     reviewLead: 'LĐ ĐV rà soát chủ trì (Ban KHĐT)', reviewPM: 'PM rà soát chủ trì (Ban KHĐT)',
     reviewCoLead: 'LĐ ĐV rà soát phối hợp (Ban KT)', reviewCoPM: 'PM rà soát phối hợp (Ban KT)',
     leader: 'LĐ Tập đoàn', clerk: 'Văn thư Tập đoàn',
     appraisalLead: 'LĐ ĐV thẩm định TĐ chủ trì', appraisalPM: 'PM thẩm định TĐ chủ trì',
     appraisalCoLead: 'LĐ ĐV thẩm định TĐ phối hợp', appraisalCoPM: 'PM thẩm định TĐ phối hợp',
-    net: 'NET ghi nhận kết quả Tập đoàn', netClerk: 'Văn thư NET ghi nhận ban hành',
-    tct: 'LĐTCT', tctClerk: 'Văn thư', originalPM: 'Chuyên viên Ban KT',
+    net: 'NET ghi nhận kết quả Tập đoàn',
+    tct: 'LĐTCT', tctClerk: 'Văn thư TCT', originalPM: 'Chuyên viên Ban KT',
     consultKT: 'Ban KT - tham vấn', consultKH: 'Ban KHĐT - tham vấn', consultTC: 'Ban TCKT - tham vấn'
   };
   const units = r => r.mode === 'REVIEW'
-    ? { lead: 'reviewLead', pm: 'reviewPM', coLead: 'reviewCoLead', coPM: 'reviewCoPM', clerk: 'reviewClerk' }
+    ? { lead: 'reviewLead', pm: 'reviewPM', coLead: 'reviewCoLead', coPM: 'reviewCoPM', clerk: 'tctClerk' }
     : { lead: 'appraisalLead', pm: 'appraisalPM', coLead: 'appraisalCoLead', coPM: 'appraisalCoPM', clerk: 'clerk' };
   // Quyền rà soát phụ thuộc phiếu chuyển hiện tại, không suy từ vai trò đang chọn.
   const reviewPurposes = {
@@ -21,6 +20,8 @@
     CO_REVIEW: 'Rà soát phối hợp', RETURN_RESULT: 'Tổng hợp kết quả phối hợp', SIGN_REPORT: 'Ký chính thức báo cáo',
     INITIAL_REPORT: 'Ký nháy báo cáo', SUBMIT_SIGNED: 'Trình báo cáo đã ký', REVISE_REPORT: 'Sửa báo cáo', RETURN_SOURCE: 'Sửa hồ sơ trình'
   };
+  const transferPurposes = { ...reviewPurposes, REGISTER_TD_ISSUE: 'Ghi nhận ban hành Quyết định TĐ đã ký',
+    RETURN_TCT: 'Tiếp nhận hồ sơ TĐ chuyển về TCT', PASS_RESULTS: 'Chuyển kết quả TĐ về đơn vị lập', APP_ROUTE: 'Xử lý hồ sơ thẩm định TĐ' };
   function receipt(r, from, to, purpose, details) {
     r.reviewTransferSequence = (r.reviewTransferSequence || 0) + 1;
     r.receipt = { id: r.reviewTransferSequence, from, to, purpose, fromName: roles[from], toName: roles[to], time: new Date().toISOString(), reportId: r.report && r.report.id, note: details && details.note || '', files: details && details.files ? [...details.files] : [] };
@@ -36,8 +37,8 @@
   }
   function reviewTask(r) {
     const x = r.receipt; if (!x || x.to !== r.owner) return '';
-    if (r.owner === 'reviewClerk' && x.purpose === 'DISPATCH_REVIEW') return 'dispatch';
-    if (['reviewLead','reviewCoLead'].includes(r.owner) && ['reviewClerk','tct'].includes(x.from) && x.purpose === 'ASSIGN_REVIEW') return 'assign';
+    if (r.owner === 'tctClerk' && x.purpose === 'DISPATCH_REVIEW') return 'dispatch';
+    if (['reviewLead','reviewCoLead'].includes(r.owner) && ['tctClerk','tct'].includes(x.from) && x.purpose === 'ASSIGN_REVIEW') return 'assign';
     if (r.owner === 'reviewPM' && ((x.from === 'reviewLead' && x.purpose === 'REVIEW_WORK') || (x.from === 'reviewCoPM' && x.purpose === 'RETURN_RESULT') || (['reviewLead','reviewCoLead'].includes(x.from) && x.purpose === 'REVISE_REPORT'))) return 'work';
     if (r.owner === 'reviewCoPM' && ((x.from === 'reviewPM' && x.purpose === 'CO_REVIEW') || (x.from === 'reviewCoLead' && x.purpose === 'REVIEW_WORK'))) return 'co-work';
     if (r.owner === 'reviewLead' && x.from === 'reviewPM' && x.purpose === 'SIGN_REPORT') return 'sign';
@@ -89,7 +90,7 @@
       owner: mode === 'REVIEW' ? 'reviewLead' : scenario === 'NET' ? 'net' : 'leader',
       mainAssigned: false, coAssigned: false, coRequested: false, coCompleted: false, ready: false, signed: false,
       report: null, decision: null, issue: { number: '', suffix: 'VNPT', date: '', eoffice: '' } };
-    r.viewer = r.owner; if (mode === 'REVIEW') receipt(r, 'reviewClerk', r.owner, 'ASSIGN_REVIEW'); return r;
+    r.viewer = r.owner; if (mode === 'REVIEW') receipt(r, 'tctClerk', r.owner, 'ASSIGN_REVIEW'); return r;
   }
   const owns = (r, viewer) => r.owner === viewer && !['LEGACY', 'DONE'].includes(r.phase);
   function canEdit(r, viewer) {
@@ -110,15 +111,17 @@
   }
   function canIssue(r, viewer) {
     return owns(r, viewer) && r.phase === 'CLERK_SIGNED' && r.decision && r.signed &&
-      (viewer === 'clerk' || (viewer === 'netClerk' && r.scenario === 'NET'));
+      (viewer === 'clerk' && r.scenario === 'TD' || viewer === 'tctClerk' && r.scenario === 'NET' && r.ready &&
+        r.report && r.report.official && r.decision.official && r.receipt && r.receipt.from === 'net' &&
+        r.receipt.to === 'tctClerk' && r.receipt.purpose === 'REGISTER_TD_ISSUE');
   }
   function allowed(r, viewer) {
     if (!owns(r, viewer)) return [];
     if (r.mode === 'REVIEW') return reviewAllowed(r, viewer);
     const u = units(r);
-    if (r.phase === 'OFFLINE') return r.report && r.decision && r.ready ? ['netClerk'] : [];
+    if (r.phase === 'OFFLINE') return r.report && r.decision && r.ready ? ['tctClerk'] : [];
     if (viewer === 'leader') return ['clerk'];
-    if (r.phase === 'ISSUED') return ['originalPM', 'tctClerk'];
+    if (r.phase === 'ISSUED') return r.scenario === 'NET' ? ['originalPM'] : ['originalPM', 'tctClerk'];
     if (r.phase === 'SIGN_MAIN') return r.report && r.report.mainSigned ? (r.mode === 'REVIEW' || r.coRequested ? [u.coLead] : [u.clerk]) : [];
     if (r.phase === 'SIGN_CO') return r.report && r.report.coSigned ? [r.mode === 'REVIEW' ? 'tct' : u.clerk] : [];
     if (viewer === u.lead && r.phase === 'ASSIGN') return [u.pm];
@@ -170,6 +173,7 @@
     if (!allowed(r, viewer).includes(recipient)) throw new Error('Người nhận không thuộc tuyến xử lý hiện tại');
     if (r.mode === 'REVIEW') return reviewTransfer(r, viewer, recipient, details);
     if (recipient.startsWith('consult')) return { consultation: true };
+    const previousPhase = r.phase;
     const u = units(r);
     if (r.phase === 'ISSUED') { r.phase = 'DONE'; r.owner = recipient; }
     else if (r.phase === 'OFFLINE') { r.phase = 'CLERK_SIGNED'; r.owner = recipient; }
@@ -183,9 +187,10 @@
     else if (recipient === u.coPM) { r.phase = 'CO_WORK'; r.owner = recipient; r.coAssigned = true; }
     else if (recipient === u.pm) { r.phase = 'WORK'; r.owner = recipient; r.mainAssigned = true; if (viewer === u.coPM) { r.coCompleted = true; r.coAssigned = false; } }
     else { r.owner = recipient; if (recipient === u.clerk && viewer === u.pm) r.phase = r.report && r.report.mainSigned && (!r.report.requiresCo || r.report.coSigned) ? 'DECISION_ROUTE' : 'DISPATCH'; }
+    receipt(r, viewer, recipient, previousPhase === 'OFFLINE' ? 'REGISTER_TD_ISSUE' : previousPhase === 'ISSUED' ? 'PASS_RESULTS' : recipient === 'tctClerk' ? 'RETURN_TCT' : 'APP_ROUTE', details);
     if (r.phase !== 'DONE') r.viewer = r.owner; return { consultation: false };
   }
-  root.KHWorkflow = { roles, units, reviewPurposes, reviewTask, receiveReview, canViewReviewReport, create, owns, canEdit, canPrepare, canComplete, canSign, canIssue, allowed, sign, complete, rejectReport, returnSource, transfer };
+  root.KHWorkflow = { roles, units, reviewPurposes, transferPurposes, reviewTask, receiveReview, canViewReviewReport, create, owns, canEdit, canPrepare, canComplete, canSign, canIssue, allowed, sign, complete, rejectReport, returnSource, transfer };
 }(typeof window === 'undefined' ? globalThis : window));
 
 (function () {
@@ -195,7 +200,7 @@
   const types = ['Core di động', 'Vô tuyến', 'BRCĐ', 'CSHT'];
   const records = new Map(), listBadges = new WeakMap(), banDrafts = new Map();
   const step4 = 'KHPTM_TD';
-  const newKeys = Object.keys(roles).filter(k => !['reviewClerk', 'tct', 'tctClerk', 'originalPM', 'consultKT', 'consultKH', 'consultTC'].includes(k));
+  const newKeys = Object.keys(roles).filter(k => !['tct', 'tctClerk', 'originalPM', 'consultKT', 'consultKH', 'consultTC'].includes(k));
   let currentType = types[0], nextNumber = 100, exchangeAttachment = null, modalSnapshot = null;
   const now = () => new Date().toLocaleString('vi-VN', { hour12: false });
   const tag = type => ({ 'Core di động': 'Core', 'Vô tuyến': 'Vo_tuyen', 'BRCĐ': 'BRCD', 'CSHT': 'CSHT' })[type];
@@ -249,7 +254,7 @@
   function restoreContext(r, key) {
     const saved = r.sourceContext;
     khptm2DeviceType = saved.type; khptmPairRecordRole = saved.pairRole || 'MAIN';
-    khptm2Role = key ? roles[key] : saved.role;
+    khptm2Role = key ? key === 'tctClerk' ? 'Văn thư' : roles[key] : saved.role;
     khptm2Step = key ? ({ originalPM: 'B1', tct: 'B3', tctClerk: 'B4' })[key] : saved.step;
     khptm2History = r.history; khptm2Exchange = r.exchange;
     khptm2ClerkIssues[r.type] = { ...saved.issue }; khptm2Issue = khptm2ClerkIssues[r.type];
@@ -258,7 +263,7 @@
   function beginReview(recipient, from, details) {
     const type = khptm2DeviceType, existing = records.get(type), fresh = makeRecord(type, 'REVIEW', 'TD');
     if (existing) { fresh.files = existing.files; fresh.report = existing.report; fresh.reportDraft = existing.reportDraft; }
-    W.receiveReview(fresh, from || 'tct', recipient, recipient === 'reviewClerk' ? 'DISPATCH_REVIEW' : 'ASSIGN_REVIEW', details);
+    W.receiveReview(fresh, from || 'tct', recipient, recipient === 'tctClerk' ? 'DISPATCH_REVIEW' : 'ASSIGN_REVIEW', details);
     if (recipient === 'reviewCoLead') fresh.coRequested = true;
     if (fresh.report) { fresh.report.mainSigned = false; fresh.report.coSigned = false; fresh.report.coInitialled = false; fresh.report.requiresInitial = false; fresh.report.signed = false; }
     records.set(type, fresh); currentType = type; log(fresh, 'Yêu cầu rà soát; giữ nguyên hồ sơ trình và chuỗi ý kiến', roles[from || 'tct']); render();
@@ -351,7 +356,7 @@
     if (r.viewer === 'net') html += button('Ghi nhận kết quả', 'kh4.approve()', own && r.phase === 'OFFLINE' && !r.ready);
     if ([u.lead, u.coLead].includes(r.viewer) && ['SIGN_MAIN', 'SIGN_CO'].includes(r.phase)) html += button(r.mode === 'REVIEW' && r.phase === 'SIGN_CO' ? 'Ký nháy Báo cáo' : 'Ký số Báo cáo', 'kh4.sign()', W.canSign(r, r.viewer)) + button('Trả sửa báo cáo', 'kh4.rejectReport()', own, 'khptm-danger');
     if (r.viewer === 'leader' && r.phase === 'SIGN_QD') html += button('Ký số Quyết định', 'kh4.sign()', W.canSign(r, r.viewer));
-    if ([u.clerk, 'netClerk'].includes(r.viewer)) html += button(r.scenario === 'NET' ? 'Ghi nhận ban hành' : 'Ban hành', 'kh4.issue()', W.canIssue(r, r.viewer));
+    if ([u.clerk, 'tctClerk'].includes(r.viewer)) html += button(r.scenario === 'NET' ? 'Ghi nhận ban hành' : 'Ban hành', 'kh4.issue()', W.canIssue(r, r.viewer));
     return html + button(r.viewer === 'leader' ? 'Chuyển Văn thư' : 'Chuyển', 'kh4.transfer()', W.allowed(r, r.viewer).length > 0);
   }
   function previewContent(r, file) {
@@ -363,11 +368,11 @@
     if (!canViewReport && r.previewKind === 'report') r.previewKind = 'source';
     const file = r[r.previewKind], doc = r.previewKind === 'report' ? r.mode === 'REVIEW' ? 'Báo cáo rà soát' : 'Báo cáo thẩm định' : 'Quyết định';
     let html = '<div class="section"><h3>Văn bản trình ký / ban hành</h3><div class="body">';
-    if (r.viewer === 'clerk' || r.viewer === 'netClerk') {
+    if (r.mode === 'APPRAISAL' && (r.viewer === 'clerk' || r.viewer === 'tctClerk')) {
       const locked = !W.canIssue(r, r.viewer) ? ' readonly' : '';
       html += '<div class="khptm-issue-grid" style="margin-bottom:12px"><div><label>Số quyết định <span class="req">*</span></label><div style="display:flex;gap:6px"><input id="kh4IssueNumber" value="' + esc(r.issue.number) + '" oninput="kh4.updateIssue()"' + locked + ' style="min-width:0;flex:1">' + button('Lấy số', 'kh4.takeNumber()', !locked) + '</div></div><div><label>Hậu tố</label><input id="kh4IssueSuffix" value="' + esc(r.issue.suffix) + '" oninput="kh4.updateIssue()"' + locked + '></div><div><label>Ngày ban hành <span class="req">*</span></label><input id="kh4IssueDate" type="date" value="' + esc(r.issue.date) + '" oninput="kh4.updateIssue()"' + locked + '></div><div><label>Số eOffice/VBKS</label><input id="kh4IssueEoffice" value="' + esc(r.issue.eoffice) + '" oninput="kh4.updateIssue()"' + locked + '></div></div>';
     }
-    if (r.viewer === 'reviewClerk') {
+    if (r.mode === 'REVIEW' && r.viewer === 'tctClerk') {
       html += '<div class="khptm-issue-grid" style="margin-bottom:12px"><div><label>Số văn bản</label><input value="' + esc(r.sourceIssue.number || '') + '" readonly></div><div><label>Hậu tố</label><input value="' + esc(r.sourceIssue.suffix || 'KT') + '" readonly></div><div><label>Ngày ban hành</label><input type="date" value="' + esc(r.sourceIssue.date || '') + '" readonly></div><div><label>Số eOffice/VBKS</label><input value="' + esc(r.sourceIssue.eoffice || '') + '" readonly></div></div>';
       return html + '<div class="khptm-doc-preview"><div class="khptm-paper">' + r.sourceHtml + '</div></div></div></div>';
     }
@@ -539,9 +544,9 @@
       khptm2Log(khptm2Role, text);
       if (note) khptm2Exchange.unshift({ actor: khptm2Role, text: note, time: now() });
       pendingTransferAction = ''; hideTransferModal();
-      if (recipient.startsWith('review')) { beginReview(recipient, snap.kind === 'tct' ? 'tct' : 'reviewClerk', { note, files: selectedFiles }); return; }
+      if (recipient.startsWith('review')) { beginReview(recipient, snap.kind === 'tct' ? 'tct' : 'tctClerk', { note, files: selectedFiles }); return; }
       if (recipient === 'tctClerk') {
-        if (!khptm2LDTCTSigned) { beginReview('reviewClerk', 'tct', { note, files: selectedFiles }); return; }
+        if (!khptm2LDTCTSigned) { beginReview('tctClerk', 'tct', { note, files: selectedFiles }); return; }
         khptm2Role = 'Văn thư'; khptm2Step = 'B4';
       } else if (recipient === 'tct') { khptm2Role = 'LĐTCT'; khptm2Step = 'B3'; }
       else { khptm2Role = 'Chuyên viên Ban KT'; khptm2Step = 'B1'; khptm2UnitLeaderSigned = false; khptm2LDTCTSigned = false; banDrafts.delete(snap.type); }
@@ -552,8 +557,8 @@
       if (snap.kind === 'returnSource') W.returnSource(r, r.viewer, { note, files: selectedFiles });
       else W.transfer(r, r.viewer, recipient, { note, files: selectedFiles });
       refreshGenerated(r, r.report); refreshGenerated(r, r.decision);
-      log(r, text + (r.mode === 'REVIEW' && r.receipt ? ' · ' + W.reviewPurposes[r.receipt.purpose] : ''), actor);
-      if (r.mode === 'REVIEW') r.history[0].receipt = { ...r.receipt, files: [...r.receipt.files] };
+      log(r, text + (r.receipt ? ' · ' + W.transferPurposes[r.receipt.purpose] : ''), actor);
+      if (r.receipt) r.history[0].receipt = { ...r.receipt, files: [...r.receipt.files] };
       if (note) r.exchange.unshift({ actor, text: note, time: now() });
       if (r.businessChanged) { log(r, 'Cập nhật dữ liệu thẩm định theo phân công; lưu nguyên bản hồ sơ trình', actor); r.businessChanged = false; }
       pendingTransferAction = ''; hideTransferModal();
@@ -571,7 +576,7 @@
       toast('Đã chuyển hồ sơ tới ' + selected.main.name);
     } catch (error) { toast(error.message); }
   }
-  function availableKeys(r) { return r.mode === 'REVIEW' ? ['reviewClerk','reviewLead','reviewPM','reviewCoLead','reviewCoPM'] : r.scenario === 'NET' ? ['net','netClerk'] : ['leader','clerk','appraisalLead','appraisalPM','appraisalCoLead','appraisalCoPM']; }
+  function availableKeys(r) { return r.mode === 'REVIEW' ? ['tctClerk','reviewLead','reviewPM','reviewCoLead','reviewCoPM'] : r.scenario === 'NET' ? ['net','tctClerk'] : ['leader','clerk','appraisalLead','appraisalPM','appraisalCoLead','appraisalCoPM']; }
   function setScenario(value) {
     const r = current();
     if (!r || r.mode !== 'APPRAISAL' || !['NET','TD'].includes(value) || r.files.some(f => f.reportMode === 'APPRAISAL') || !['INBOX','DISPATCH','OFFLINE'].includes(r.phase)) { render(); return toast('Chỉ đổi kịch bản trước khi xử lý thẩm định'); }
@@ -580,6 +585,9 @@
   function setRole(key) { const r = current(); if (r && availableKeys(r).includes(key)) { r.viewer = key; render(); } }
   function addRoleOptions() {
     const select = document.getElementById('khptm2Role');
+    // Giữ value cũ cho các handler bước 1–3, nhưng chỉ hiển thị một actor TCT.
+    const clerk = [...select.options].find(o => o.value === 'Văn thư');
+    if (clerk) { clerk.value = 'Văn thư'; clerk.textContent = roles.tctClerk; }
     if (!select.querySelector('[data-kh4-role]')) {
       const group = document.createElement('optgroup'); group.label = 'Rà soát TCT / Thẩm định Tập đoàn';
       newKeys.forEach(key => { const option = document.createElement('option'); option.value = roles[key]; option.textContent = roles[key]; option.dataset.kh4Role = key; group.appendChild(option); });
@@ -608,12 +616,12 @@
     document.getElementById('kh4Scenario').disabled = r.files.some(f => f.reportMode === 'APPRAISAL') || !['INBOX','DISPATCH','OFFLINE'].includes(r.phase);
     addRoleOptions();
     document.querySelectorAll('#khptm2Role [data-kh4-role]').forEach(o => { o.hidden = !availableKeys(r).includes(o.dataset.kh4Role); });
-    document.getElementById('khptm2Role').value = roles[r.viewer];
-    document.getElementById('kh4Status').textContent = status(r) + ' · Người xử lý: ' + roles[r.owner] + (r.mode === 'REVIEW' && r.receipt ? ' · Người chuyển: ' + r.receipt.fromName + ' · Nhiệm vụ: ' + W.reviewPurposes[r.receipt.purpose] + (r.receipt.note ? ' · ' + r.receipt.note : '') : '');
+    document.getElementById('khptm2Role').value = r.viewer === 'tctClerk' ? 'Văn thư' : roles[r.viewer];
+    document.getElementById('kh4Status').textContent = status(r) + ' · Người xử lý: ' + roles[r.owner] + (r.receipt ? ' · Người chuyển: ' + r.receipt.fromName + ' · Nhiệm vụ: ' + W.transferPurposes[r.receipt.purpose] + (r.receipt.note ? ' · ' + r.receipt.note : '') : '');
     document.getElementById('khptm2TopActions').innerHTML = actions(r);
     const u = W.units(r), isPM = [u.pm,u.coPM].includes(r.viewer);
     if (r.lastViewer !== r.viewer) {
-      r.previewKind = ['leader','clerk','netClerk','reviewClerk'].includes(r.viewer) ? r.decision ? 'decision' : 'source' : ['ASSIGN','CO_ASSIGN'].includes(r.phase) ? 'source' : 'report';
+      r.previewKind = ['leader','clerk','tctClerk'].includes(r.viewer) ? r.decision ? 'decision' : 'source' : ['ASSIGN','CO_ASSIGN'].includes(r.phase) ? 'source' : 'report';
       r.lastViewer = r.viewer;
     }
     document.getElementById('kh4Panel').innerHTML = (isPM ? formHtml(r) : '') +
@@ -676,14 +684,23 @@
     });
     if (r) {
       currentType = type;
-      if (r.mode === 'REVIEW' && r.phase === 'LEGACY' && r.receipt && roles[r.owner] === khptm2Role) {
+      if (r.phase === 'LEGACY' && r.receipt && (r.owner === 'tctClerk' ? khptm2Role === 'Văn thư' : roles[r.owner] === khptm2Role)) {
         document.getElementById('kh4Context').style.display = 'contents';
         document.getElementById('kh4Scenario').style.display = 'none'; document.getElementById('kh4ScenarioLabel').style.display = 'none';
-        document.getElementById('kh4Status').textContent = 'Người chuyển: ' + r.receipt.fromName + ' · Nhiệm vụ: ' + W.reviewPurposes[r.receipt.purpose] + (r.receipt.note ? ' · ' + r.receipt.note : '');
+        document.getElementById('kh4Status').textContent = 'Người chuyển: ' + r.receipt.fromName + ' · Nhiệm vụ: ' + W.transferPurposes[r.receipt.purpose] + (r.receipt.note ? ' · ' + r.receipt.note : '');
       }
       const body = document.querySelector('#khptm2Extended .pm-ext-table tbody');
       r.files.forEach((file, index) => { if (body) body.insertAdjacentHTML('beforeend', docRow(body.rows.length + 1, r, file, 'kh4.previewFile(' + index + ')', false)); });
       r.history = khptm2History; r.exchange = khptm2Exchange;
+    }
+    displayClerkNames(document.getElementById('khptm-build-process'));
+  }
+  function displayClerkNames(host) {
+    // Chỉ đổi text hiển thị KHPTM; không đổi value/handler hay các module khác.
+    const walker = document.createTreeWalker(host, NodeFilter.SHOW_TEXT);
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      if (!node.parentElement.closest('script,style,input,textarea')) node.textContent = node.textContent.replace(/Văn thư(?! Tập đoàn| TCT)/g, 'Văn thư TCT');
     }
   }
   function mount() {
@@ -702,7 +719,8 @@
   const previousTransferOpen = openKHPTM2Transfer;
   openKHPTM2Transfer = function (action) {
     if (action === 'khbuildSubmitLDTCT' && (!khptm2UnitLeaderSigned || !banState().initialled)) return toast('LĐ Ban cần ký chính thức Tờ trình và ký nháy dự thảo VB trình TĐ');
-    return previousTransferOpen.apply(this, arguments);
+    const result = previousTransferOpen.apply(this, arguments);
+    displayClerkNames(document.getElementById('transferModal')); return result;
   };
   const previousReturn = khptm2ReturnSpecialist;
   khptm2ReturnSpecialist = function () { banDrafts.delete(khptm2DeviceType); const r = records.get(khptm2DeviceType); if (r) { r.phase = 'LEGACY'; if (r.report) r.report.archived = true; } return previousReturn.apply(this, arguments); };
@@ -729,7 +747,7 @@
   const previousSwitchRole = switchKHPTMBuildRole;
   switchKHPTMBuildRole = function (role) {
     const type = khptm2DeviceType;
-    if (role === 'Văn thư' && khptm2Step === step4 && current().mode === 'REVIEW') return setRole('reviewClerk');
+    if (role === 'Văn thư' && khptm2Step === step4 && availableKeys(current()).includes('tctClerk')) return setRole('tctClerk');
     const key = newKeys.find(k => roles[k] === role);
     if (key) {
       if (khptm2Step === step4) { const r = current(); if (availableKeys(r).includes(key)) return setRole(key); }

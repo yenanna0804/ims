@@ -18,12 +18,44 @@ function ready(r) {
   W.complete(r, 'reviewPM');
   W.transfer(r, 'reviewPM', 'reviewLead', { note: 'Trình ký báo cáo', files: ['Bao_cao_v1.doc'] });
 }
+test('chỉ có một actor Văn thư TCT và một actor Văn thư Tập đoàn', () => {
+  assert.deepEqual(Object.entries(W.roles).filter(([,name]) => name.startsWith('Văn thư')).map(([key,name]) => [key,name]),
+    [['clerk','Văn thư Tập đoàn'],['tctClerk','Văn thư TCT']]);
+});
 for (const type of ['Core di động', 'Vô tuyến', 'BRCĐ', 'CSHT']) {
+  test(`${type}: cùng Văn thư TCT nhưng điều phối rà soát khác ghi nhận ban hành`, () => {
+    const r = W.create(type, 'REVIEW');
+    W.receiveReview(r, 'tct', 'tctClerk', 'DISPATCH_REVIEW');
+    assert.deepEqual(recipients(r,'tctClerk'), ['reviewLead','reviewCoLead','originalPM','tct']);
+    assert.equal(W.canIssue(r,'tctClerk'), false);
+    const n = W.create(type, 'APPRAISAL', 'NET');
+    assert.deepEqual(recipients(n,'tctClerk'), []);
+    n.report = {official:true}; n.decision = {official:true};
+    W.complete(n,'net');
+    assert.deepEqual(recipients(n,'net'), ['tctClerk']);
+    W.transfer(n,'net','tctClerk',{note:'Ghi nhận QĐ TĐ đã ban hành'});
+    assert.equal(n.owner,'tctClerk'); assert.equal(n.phase,'CLERK_SIGNED');
+    assert.equal(n.receipt.purpose,'REGISTER_TD_ISSUE');
+    assert.equal(W.canIssue(n,'tctClerk'), true);
+    n.receipt.from = 'clerk'; assert.equal(W.canIssue(n,'tctClerk'), false);
+    n.receipt.from = 'net'; n.phase = 'ISSUED';
+    assert.deepEqual(recipients(n,'tctClerk'), ['originalPM']);
+    assert.throws(() => W.transfer(n,'tctClerk','tctClerk'));
+  });
+  test(`${type}: TĐ trả hồ sơ cho Văn thư TCT không cấp quyền ghi nhận ban hành`, () => {
+    const r = W.create(type,'APPRAISAL','TD');
+    W.transfer(r,'leader','clerk');
+    W.transfer(r,'clerk','tctClerk');
+    assert.equal(r.phase,'LEGACY'); assert.equal(r.owner,'tctClerk');
+    assert.equal(r.receipt.from,'clerk'); assert.equal(r.receipt.purpose,'RETURN_TCT');
+    assert.equal(W.canIssue(r,'tctClerk'), false);
+    assert.deepEqual(recipients(r,'tctClerk'), []);
+  });
   test(`${type}: phân công từ Văn thư không mở xem/ký báo cáo`, () => {
     for (const role of ['reviewLead', 'reviewCoLead']) {
       const r = W.create(type, 'REVIEW');
       r.report = { id: 'old-report', mainSigned: true, coInitialled: true };
-      W.receiveReview(r, 'reviewClerk', role, 'ASSIGN_REVIEW');
+      W.receiveReview(r, 'tctClerk', role, 'ASSIGN_REVIEW');
       assert.equal(W.canViewReviewReport(r, role), false);
       assert.equal(W.canSign(r, role), false);
       assert.deepEqual(recipients(r, role), [role === 'reviewLead' ? 'reviewPM' : 'reviewCoPM']);
@@ -94,7 +126,7 @@ for (const type of ['Core di động', 'Vô tuyến', 'BRCĐ', 'CSHT']) {
   });
   test(`${type}: cùng phase nhưng sai nguồn chuyển/phiên bản không được ký`, () => {
     const r = work(type); ready(r);
-    r.receipt.from = 'reviewClerk';
+    r.receipt.from = 'tctClerk';
     assert.equal(W.canSign(r, 'reviewLead'), false);
     assert.deepEqual(recipients(r, 'reviewLead'), []);
     r.receipt.from = 'reviewPM'; r.report.id = 'report-v2';
@@ -110,7 +142,7 @@ for (const type of ['Core di động', 'Vô tuyến', 'BRCĐ', 'CSHT']) {
     W.transfer(a, 'clerk', 'leader'); W.sign(a, 'leader'); W.transfer(a, 'leader', 'clerk');
     assert.equal(W.canIssue(a, 'clerk'), true);
     const n = W.create(type, 'APPRAISAL', 'NET'); assert.throws(() => W.complete(n, 'net'));
-    n.report = { official: true }; n.decision = { official: true }; W.complete(n, 'net'); W.transfer(n, 'net', 'netClerk');
-    assert.equal(W.canIssue(n, 'netClerk'), true); assert.equal(W.canSign(n, 'leader'), false);
+    n.report = { official: true }; n.decision = { official: true }; W.complete(n, 'net'); W.transfer(n, 'net', 'tctClerk');
+    assert.equal(W.canIssue(n, 'tctClerk'), true); assert.equal(W.canSign(n, 'leader'), false);
   });
 }

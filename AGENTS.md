@@ -18,7 +18,7 @@ Một vai trò có thể nhận hồ sơ để phân công, thực hiện nghi�
 
 Giữ cùng chức năng/danh sách/hồ sơ khi thêm bước xử lý. Màn lãnh đạo và văn thư dùng khung preview văn bản, rồi Thông tin mở rộng. Lãnh đạo ghi/phê ý kiến tại phần trao đổi; không nhập nhiều field nghiệp vụ.
 
-Văn thư TCT là một actor **Văn thư**, có Ban hành và Chuyển; nơi nhận tùy nhiệm vụ và trạng thái, không tạo actor Văn thư điều phối rà soát riêng. Giữ popup File chuyển đi / Thông tin nhận / Thông tin ý kiến và bảng Thông tin mở rộng theo pattern hiện tại. Chỉ thay dummy đúng ngữ cảnh hoặc bổ sung tài liệu thực tế của bước mới.
+**Văn thư TCT** là một actor duy nhất (`tctClerk`), dùng cho văn bản TCT trình TĐ, điều phối rà soát và NET ghi nhận ban hành kết quả TĐ. Không tạo actor Văn thư điều phối/NET riêng. **Văn thư Tập đoàn** là actor riêng. Cùng người nhận TCT nhưng quyền, preview, metadata và nơi chuyển phải theo hồ sơ/nhiệm vụ được chuyển đến: văn bản TCT đã ký mới ban hành văn bản TCT; rà soát chỉ điều phối; NET chỉ ghi nhận quyết định TĐ đã ký/ban hành ngoài hệ thống, không ký lại và không chuyển cho chính mình. Giữ giá trị vai trò legacy trong các handler cũ; chỉ đổi tên hiển thị thành Văn thư TCT. Giữ popup File chuyển đi / Thông tin nhận / Thông tin ý kiến và bảng Thông tin mở rộng theo pattern hiện tại. Chỉ thay dummy đúng ngữ cảnh hoặc bổ sung tài liệu thực tế của bước mới.
 
 ## Rà soát KHPTM đã chốt (01/10/2026)
 
