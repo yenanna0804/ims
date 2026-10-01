@@ -25,7 +25,7 @@
   const owns = (r, viewer) => r.owner === viewer && !['LEGACY', 'DONE'].includes(r.phase);
   function canEdit(r, viewer) {
     const u = units(r);
-    return r.mode === 'APPRAISAL' && r.scenario === 'TD' && owns(r, viewer) &&
+    return r.mode === 'APPRAISAL' && r.scenario === 'TD' && owns(r, viewer) && !r.ready &&
       ((viewer === u.pm && r.phase === 'WORK') || (viewer === u.coPM && r.phase === 'CO_WORK' && r.coAssigned));
   }
   const canPrepare = (r, viewer) => owns(r, viewer) && viewer === units(r).pm && r.phase === 'WORK' && !r.ready;
@@ -53,11 +53,11 @@
     if (viewer === u.lead && r.phase === 'ASSIGN') return [u.pm];
     if (viewer === u.coLead && r.phase === 'CO_ASSIGN') return [u.coPM];
     if (viewer === u.coPM && r.phase === 'CO_WORK' && r.coAssigned) return [r.mainAssigned ? u.pm : u.lead];
-    if (viewer === u.pm && r.phase === 'WORK') return r.ready ? [u.lead] : [u.coLead, 'consultKT', 'consultKH', 'consultTC'];
+    if (viewer === u.pm && r.phase === 'WORK') return r.ready ? [u.lead, ...(r.mode === 'APPRAISAL' ? [u.clerk] : [])] : [u.coLead, ...(r.mode === 'APPRAISAL' ? [u.clerk] : []), 'consultKT', 'consultKH', 'consultTC'];
     if (viewer === u.clerk) {
       if (r.mode === 'REVIEW') return [u.lead, u.coLead, 'originalPM', 'tct'];
       if (r.phase === 'CLERK_SIGNED') return ['leader'];
-      return [u.lead, u.coLead, 'tct', 'tctClerk', ...(r.phase === 'DECISION_ROUTE' && r.decision ? ['leader'] : [])];
+      return [u.lead, u.coLead, 'tct', 'tctClerk', ...(r.phase === 'DECISION_ROUTE' && r.decision && r.report && r.report.mainSigned && (!r.report.requiresCo || r.report.coSigned) ? ['leader'] : [])];
     }
     return [];
   }
@@ -66,6 +66,7 @@
     if (r.phase === 'SIGN_QD') { r.signed = true; r.decision.signed = true; }
     else if (r.phase === 'SIGN_MAIN') r.report.mainSigned = true;
     else r.report.coSigned = true;
+    if (r.report) r.report.signed = !!r.report.mainSigned && (r.mode !== 'REVIEW' && !r.report.requiresCo || !!r.report.coSigned);
   }
   function complete(r, viewer) {
     if (r.phase === 'OFFLINE' && owns(r, viewer) && viewer === 'net') {
@@ -95,12 +96,12 @@
     else if (viewer === 'leader') { r.phase = r.signed ? 'CLERK_SIGNED' : r.decision ? 'DECISION_ROUTE' : 'DISPATCH'; r.owner = 'clerk'; }
     else if (recipient === 'leader') { r.phase = r.signed ? 'CLERK_SIGNED' : 'SIGN_QD'; r.owner = recipient; }
     else if (recipient === 'originalPM' || recipient === 'tct' || recipient === 'tctClerk') { r.phase = 'LEGACY'; r.owner = recipient; }
-    else if (recipient === u.lead) { r.phase = viewer === u.pm && r.ready ? 'SIGN_MAIN' : 'ASSIGN'; r.owner = recipient; if (viewer === u.coPM) { r.coCompleted = true; r.coAssigned = false; } }
+    else if (recipient === u.lead) { r.phase = viewer === u.pm && r.ready ? 'SIGN_MAIN' : 'ASSIGN'; r.owner = recipient; if (viewer === u.clerk) { r.ready = false; r.signed = false; if (r.decision) r.decision.signed = false; if (r.report) { r.report.mainSigned = false; r.report.coSigned = false; } } if (viewer === u.coPM) { r.coCompleted = true; r.coAssigned = false; } }
     else if (recipient === u.coLead) { r.phase = 'CO_ASSIGN'; r.owner = recipient; r.coRequested = true; r.coCompleted = false; r.ready = false; }
     else if (recipient === u.coPM) { r.phase = 'CO_WORK'; r.owner = recipient; r.coAssigned = true; }
     else if (recipient === u.pm) { r.phase = 'WORK'; r.owner = recipient; r.mainAssigned = true; if (viewer === u.coPM) { r.coCompleted = true; r.coAssigned = false; } }
-    else { r.owner = recipient; }
-    r.viewer = r.owner; return { consultation: false };
+    else { r.owner = recipient; if (recipient === u.clerk && viewer === u.pm) r.phase = r.report && r.report.mainSigned && (!r.report.requiresCo || r.report.coSigned) ? 'DECISION_ROUTE' : 'DISPATCH'; }
+    if (r.phase !== 'DONE') r.viewer = r.owner; return { consultation: false };
   }
   root.KHWorkflow = { roles, units, create, owns, canEdit, canPrepare, canComplete, canSign, canIssue, allowed, sign, complete, rejectReport, returnSource, transfer };
 }(typeof window === 'undefined' ? globalThis : window));
@@ -260,7 +261,7 @@
     const own = W.owns(r, r.viewer), u = W.units(r);
     let html = r.mode === 'REVIEW' ? button('Xem Tờ trình LĐ TCT', 'kh4.previewSubmission()', true) + button('Xem dự thảo VB trình Tập đoàn', 'kh4.previewSource()', true) : button('Xem VB TCT trình Tập đoàn', 'kh4.previewSource()', true);
     if (r.mode === 'REVIEW') html += button('Xem Báo cáo rà soát', "kh4.previewDocument('report')", !!r.report);
-    else html += button('Xem Báo cáo thẩm định', "kh4.previewDocument('report')", !!r.report) + button('Xem dự thảo Quyết định', "kh4.previewDocument('decision')", !!r.decision);
+    else html += button('Xem Báo cáo thẩm định', "kh4.previewDocument('report')", !!r.report) + button(r.scenario === 'NET' ? 'Xem Quyết định Tập đoàn' : 'Xem dự thảo Quyết định', "kh4.previewDocument('decision')", !!r.decision);
     if ([u.pm, u.coPM].includes(r.viewer)) {
       if (r.viewer === u.pm) html += button(r.mode === 'REVIEW' ? 'Hoàn thiện báo cáo' : 'Duyệt', 'kh4.approve()', W.canPrepare(r, r.viewer));
       if (r.mode === 'REVIEW' && r.viewer === u.pm) html += button('Trả PM lập hồ sơ', 'kh4.returnSource()', own && r.phase === 'WORK' && !r.ready, 'khptm-danger');
@@ -395,7 +396,7 @@
       if (khptm2Role !== 'LĐTCT' || khptm2Step !== 'B3') return;
       allowed = ['reviewClerk', 'reviewLead', 'reviewCoLead', 'tctClerk'];
     } else if (kind === 'tctClerk') {
-      if (khptm2Role !== 'Văn thư' || khptm2ClerkIssue().issued) return;
+      if (khptm2Role !== 'Văn thư' || khptm2ClerkIssue().issued && !(r && r.returnedFromTD)) return;
       allowed = ['reviewLead', 'reviewCoLead', 'tct', 'originalPM'];
     } else if (kind === 'returnSource') {
       if (!r || !W.owns(r, r.viewer) || r.mode !== 'REVIEW' || r.viewer !== 'reviewPM' || r.phase !== 'WORK' || r.ready) return;
@@ -463,11 +464,13 @@
     try {
       if (snap.kind === 'returnSource') W.returnSource(r, r.viewer);
       else W.transfer(r, r.viewer, recipient);
+      refreshGenerated(r, r.report); refreshGenerated(r, r.decision);
       log(r, text, actor);
       if (note) r.exchange.unshift({ actor, text: note, time: now() });
       if (r.businessChanged) { log(r, 'Cập nhật dữ liệu thẩm định theo phân công; lưu nguyên bản hồ sơ trình', actor); r.businessChanged = false; }
       pendingTransferAction = ''; hideTransferModal();
       if (r.phase === 'LEGACY') {
+        r.returnedFromTD = r.mode === 'APPRAISAL';
         if (recipient === 'originalPM') {
           r.sourceContext.banSigned = false; r.sourceContext.tctSigned = false;
           r.sourceContext.issue = { number: '', suffix: 'KT', date: '2026-12-05', eoffice: '' };
@@ -572,8 +575,8 @@
       host.innerHTML += button('Chuyển', "kh4.transfer('tct')", true, 'khptm-emphasis');
       if (r && r.report && r.report.reportMode === 'REVIEW') host.innerHTML = button('Xem Báo cáo rà soát', "kh4.previewDocument('report')", true) + host.innerHTML;
     }
-    if (khptm2Role === 'Văn thư' && !khptm2ClerkIssue().issued) {
-      document.getElementById('khptm2TopActions').innerHTML = button('Ban hành', 'issueKHPTM2()', khptm2LDTCTSigned && khptm2Step === 'B4', 'khptm-emphasis') + button('Chuyển', "kh4.transfer('tctClerk')", true, 'khptm-emphasis');
+    if (khptm2Role === 'Văn thư' && (!khptm2ClerkIssue().issued || r && r.returnedFromTD)) {
+      document.getElementById('khptm2TopActions').innerHTML = button('Ban hành', 'issueKHPTM2()', khptm2LDTCTSigned && khptm2Step === 'B4' && !khptm2ClerkIssue().issued, 'khptm-emphasis') + button('Chuyển', "kh4.transfer('tctClerk')", true, 'khptm-emphasis');
     }
     // Thay dummy sai ngữ cảnh; không đổi cấu trúc Thông tin mở rộng.
     document.querySelectorAll('#khptm2Extended .pm-ext-table tbody tr').forEach(row => {
