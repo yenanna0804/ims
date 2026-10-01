@@ -1505,18 +1505,18 @@ function khptmPairTopActions(host){
   }else if(khptm2Role==='Chuyên viên Ban KT'&&khptm2Step==='B1'){
     html+="<button onclick=\"toast('Đã lưu nháp bản chính Ban KT')\">Lưu nháp</button>";
     if(s.merged)html+="<button onclick=\"toast('Đang sử dụng dữ liệu đã Merge từ TTP v"+s.mergedFromVersion+"')\">Xem phần TTP đã Merge</button>";
-    html+="<button onclick=\"openKHPTM2Preview('submission')\">Xem Tờ trình</button>";
+    html+="<button onclick=\"openKHPTM2Preview('submission')\">Xem Tờ trình LĐ TCT</button>";
     html+="<button onclick=\"openKHPTM2Preview('outgoing')\">Xem dự thảo VB trình Tập đoàn</button>";
     html+="<button class=\"khptm-emphasis\" onclick=\"openKHPTM2Transfer('khbuildRoute')\">Chuyển</button>";
   }else if(khptm2Role==='Đơn vị cung cấp thông tin'&&khptm2Step==='BINFO'){
     html+="<button class=\"khptm-emphasis\" onclick=\"openKHPTM2Transfer('khbuildInfoReturn')\">Chuyển</button>";
   }else if(khptm2Role==='LĐ Ban KT'&&khptm2Step==='B2'){
-    html+="<button onclick=\"openKHPTM2Preview('submission')\">Xem Tờ trình</button>";
+    html+="<button onclick=\"openKHPTM2Preview('submission')\">Xem Tờ trình LĐ TCT</button>";
     html+="<button onclick=\"openKHPTM2Preview('outgoing')\">Xem dự thảo VB trình Tập đoàn</button>";
     html+="<button class=\"khptm-danger\" onclick=\"khptm2ReturnSpecialist()\">Trả lại</button>";
     html+=khptm2UnitLeaderSigned?"<button class=\"khptm-emphasis\" onclick=\"openKHPTM2Transfer('khbuildSubmitLDTCT')\">Chuyển</button>":"<button class=\"khptm-emphasis\" onclick=\"khptm2SignUnitLeader()\">Ký số Tờ trình</button>";
   }else if(khptm2Role==='LĐTCT'&&khptm2Step==='B3'){
-    html+="<button onclick=\"openKHPTM2Preview('submission')\">Xem Tờ trình</button>";
+    html+="<button onclick=\"openKHPTM2Preview('submission')\">Xem Tờ trình LĐ TCT</button>";
     html+="<button onclick=\"openKHPTM2Preview('outgoing')\">Xem VB trình Tập đoàn</button>";
 
     html+="<button class=\"khptm-danger\" onclick=\"khptm2ReturnSpecialist()\">Trả lại</button>";
@@ -1708,7 +1708,7 @@ function renderKHPTM2TopActions(){
 
   if(khptm2Role==='Chuyên viên Ban KT'&&khptm2Step==='B1'){
     html+="<button onclick=\"toast('Đã lưu nháp hồ sơ KHPTM "+khptm2DeviceType+"')\">Lưu nháp</button>";
-    html+="<button onclick=\"openKHPTM2Preview('submission')\">Xem Tờ trình</button>";
+    html+="<button onclick=\"openKHPTM2Preview('submission')\">Xem Tờ trình LĐ TCT</button>";
     html+="<button onclick=\"openKHPTM2Preview('outgoing')\">Xem dự thảo VB trình Tập đoàn</button>";
     html+="<button class=\"khptm-emphasis\" onclick=\"openKHPTM2Transfer('khbuildRoute')\">Chuyển</button>";
 
@@ -1721,7 +1721,7 @@ function renderKHPTM2TopActions(){
     html+="<button class=\"khptm-emphasis\" onclick=\"openKHPTM2Transfer('khbuildReviewRoute')\">Chuyển</button>";
 
   }else if(khptm2Role==='LĐ Ban KT'&&khptm2Step==='B2'){
-    html+="<button onclick=\"openKHPTM2Preview('submission')\">Xem Tờ trình</button>";
+    html+="<button onclick=\"openKHPTM2Preview('submission')\">Xem Tờ trình LĐ TCT</button>";
     html+="<button onclick=\"openKHPTM2Preview('outgoing')\">Xem dự thảo VB trình Tập đoàn</button>";
     html+="<button class=\"khptm-danger\" onclick=\"khptm2ReturnSpecialist()\">Trả lại</button>";
     html+=khptm2UnitLeaderSigned
@@ -1729,7 +1729,7 @@ function renderKHPTM2TopActions(){
       : "<button class=\"khptm-emphasis\" onclick=\"khptm2SignUnitLeader()\">Ký số Tờ trình</button>";
 
   }else if(khptm2Role==='LĐTCT'&&khptm2Step==='B3'){
-    html+="<button onclick=\"openKHPTM2Preview('submission')\">Xem Tờ trình</button>";
+    html+="<button onclick=\"openKHPTM2Preview('submission')\">Xem Tờ trình LĐ TCT</button>";
     html+="<button onclick=\"openKHPTM2Preview('outgoing')\">Xem VB trình Tập đoàn</button>";
 
     html+="<button class=\"khptm-danger\" onclick=\"khptm2ReturnSpecialist()\">Trả lại</button>";
@@ -2280,18 +2280,18 @@ function renderKHPTMTopActions(){
   let html='';
   if(khptmRole==='Chuyên viên KHPTM'&&khptmStep==='K1'){
     html+='<button onclick="toast(\'Đã lưu nháp hồ sơ KHPTM\')">Lưu nháp</button>';
-    html+='<button onclick="openKHPTMPreview(\'submission\')">Xem Tờ trình</button>';
+    html+='<button onclick="openKHPTMPreview(\'submission\')">Xem Tờ trình LĐ TCT</button>';
     html+='<button onclick="openKHPTMPreview(\'gnv\')">Xem dự thảo VB GNV</button>';
     html+='<button class="khptm-emphasis" onclick="openKhptmTransfer(\'khptmSubmitUnitLeader\')">Chuyển</button>';
   }else if(khptmRole==='LĐ Ban chủ trì'&&khptmStep==='K2'){
-    html+='<button onclick="openKHPTMPreview(\'submission\')">Xem Tờ trình</button>';
+    html+='<button onclick="openKHPTMPreview(\'submission\')">Xem Tờ trình LĐ TCT</button>';
     html+='<button onclick="openKHPTMPreview(\'gnv\')">Xem dự thảo VB GNV</button>';
     html+='<button class="khptm-danger" onclick="khptmReturnToSpecialist()">Trả lại</button>';
     html+=khptmUnitLeaderSigned
       ? '<button class="khptm-emphasis" onclick="openKhptmTransfer(\'khptmSubmitLDTCT\')">Chuyển</button>'
       : '<button class="khptm-emphasis" onclick="khptmSignSubmissionByUnitLeader()">Ký số Tờ trình</button>';
   }else if(khptmRole==='LĐTCT'&&khptmStep==='K3'){
-    html+='<button onclick="openKHPTMPreview(\'submission\')">Xem Tờ trình</button>';
+    html+='<button onclick="openKHPTMPreview(\'submission\')">Xem Tờ trình LĐ TCT</button>';
     html+='<button onclick="openKHPTMPreview(\'gnv\')">Xem VB GNV</button>';
     html+='<button class="khptm-danger" onclick="khptmReturnToSpecialist()">Trả lại</button>';
     html+=khptmSigned
