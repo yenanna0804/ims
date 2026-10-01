@@ -1420,11 +1420,16 @@ function renderKHPTMPairSpecialist(){
     '<div class="section"><h3>Thông tin hồ sơ</h3><div class="body">'+
       '<div class="kh2-info-grid">'+
         '<div><label>Văn bản GNV <span class="req">*</span></label><select disabled><option selected>'+s.gnv+' - GNV phối hợp XD KHPTM 2027</option></select></div>'+
-        '<div><label>Loại thiết bị</label><input value="'+khptm2DeviceType+'" readonly></div>'+
-        '<div><label>Đơn vị lập</label><input value="'+(review?'VNPT TTP':'Ban KT')+'" readonly></div>'+
-        '<div><label>Vai trò theo VB GNV</label><input value="'+(review?'Phối hợp - hồ sơ đang thẩm định':'Chính - đơn vị chủ trì')+'" readonly></div>'+
-        '<div><label>Năm kế hoạch</label><input value="2027" readonly></div>'+
-        '<div><label>Hạn trình KHPTM</label><input type="date" value="2026-12-10" readonly></div>'+
+        '<div><label>Loại thiết bị <span class="req">*</span></label><select id="khptm2DeviceType" onchange="khptm2TypeChanged(this.value)" '+(review?'disabled':'')+'>'+
+          '<option '+(khptm2DeviceType==='Core di động'?'selected':'')+'>Core di động</option>'+
+          '<option '+(khptm2DeviceType==='Vô tuyến'?'selected':'')+'>Vô tuyến</option>'+
+          '<option '+(khptm2DeviceType==='BRCĐ'?'selected':'')+'>BRCĐ</option>'+
+          '<option '+(khptm2DeviceType==='CSHT'?'selected':'')+'>CSHT</option>'+
+        '</select></div>'+
+        '<div><label>Đơn vị lập</label><input value="'+(review?'VNPT TTP':'Ban KT')+'" disabled></div>'+
+        '<div><label>Vai trò theo VB GNV</label><input value="'+(review?'Phối hợp - hồ sơ đang thẩm định':'Chính - đơn vị chủ trì')+'" disabled></div>'+
+        '<div><label>Năm kế hoạch</label><input value="2027" disabled></div>'+
+        '<div><label>Hạn trình KHPTM</label><input type="date" value="2026-12-10" disabled></div>'+
       '</div>'+
       '<div class="kh2-doc-note" style="margin-top:10px"><b>Quan hệ theo VB GNV:</b> Ban KT = xử lý chính; VNPT TTP = đơn vị phối hợp. Hệ thống dùng VB GNV + Loại thiết bị + Vai trò Chính/Phối hợp để xác định cặp hồ sơ được phép thẩm định/Merge.</div>'+
     '</div></div>'+
@@ -1440,10 +1445,10 @@ function renderKHPTMPairTTP(){
       '<div class="kh2-info-grid">'+
         '<div><label>Văn bản GNV <span class="req">*</span></label><select disabled><option selected>'+s.gnv+' - GNV phối hợp XD KHPTM 2027</option></select></div>'+
         '<div><label>Loại thiết bị</label><input value="'+khptm2DeviceType+'" readonly></div>'+
-        '<div><label>Đơn vị lập</label><input value="VNPT TTP" readonly></div>'+
-        '<div><label>Vai trò theo VB GNV</label><input value="Phối hợp" readonly></div>'+
-        '<div><label>Năm kế hoạch</label><input value="2027" readonly></div>'+
-        '<div><label>Hạn hoàn thành phần TTP</label><input type="date" value="2026-11-25" readonly></div>'+
+        '<div><label>Đơn vị lập</label><input value="VNPT TTP" disabled></div>'+
+        '<div><label>Vai trò theo VB GNV</label><input value="Phối hợp" disabled></div>'+
+        '<div><label>Năm kế hoạch</label><input value="2027" disabled></div>'+
+        '<div><label>Hạn hoàn thành phần TTP</label><input type="date" value="2026-11-25" disabled></div>'+
       '</div>'+
       '<div class="kh2-doc-note" style="margin-top:10px"><b>Bản phối hợp độc lập:</b> hệ thống nhận diện theo cùng VB GNV '+s.gnv+' và Loại thiết bị '+khptm2DeviceType+'. Sau khi gửi Ban KT thẩm định, bản này vẫn được giữ làm hồ sơ nguồn.</div>'+
     '</div></div>'+
