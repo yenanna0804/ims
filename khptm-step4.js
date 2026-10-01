@@ -22,7 +22,8 @@
     INITIAL_REPORT: 'Ký nháy báo cáo', SUBMIT_SIGNED: 'Trình báo cáo đã ký', REVISE_REPORT: 'Sửa báo cáo', RETURN_SOURCE: 'Sửa hồ sơ trình'
   };
   function receipt(r, from, to, purpose, details) {
-    r.receipt = { from, to, purpose, fromName: roles[from], toName: roles[to], time: new Date().toISOString(), reportId: r.report && r.report.id, note: details && details.note || '', files: details && details.files ? [...details.files] : [] };
+    r.reviewTransferSequence = (r.reviewTransferSequence || 0) + 1;
+    r.receipt = { id: r.reviewTransferSequence, from, to, purpose, fromName: roles[from], toName: roles[to], time: new Date().toISOString(), reportId: r.report && r.report.id, note: details && details.note || '', files: details && details.files ? [...details.files] : [] };
   }
   function receiveReview(r, from, to, purpose, details) {
     if (r.mode !== 'REVIEW') throw new Error('Không phải hồ sơ rà soát');
@@ -46,7 +47,7 @@
   }
   function canViewReviewReport(r, viewer) {
     if (r.mode !== 'REVIEW' || !['reviewLead','reviewCoLead'].includes(viewer)) return true;
-    return owns(r, viewer) && ['sign','initial','submit'].includes(reviewTask(r));
+    return owns(r, viewer) && !!r.report && r.receipt.reportId === r.report.id && ['sign','initial','submit'].includes(reviewTask(r));
   }
   function reviewAllowed(r, viewer) {
     const task = reviewTask(r);
@@ -202,7 +203,7 @@
   const log = (r, text, actor) => r.history.unshift({ actor: actor || roles[r.viewer], text, time: now() });
   const numberText = issue => issue.number ? issue.number + '/QĐ-' + (issue.suffix || 'VNPT') : '.../QĐ-VNPT';
   const isEditor = r => W.canPrepare(r, r.viewer) || (W.owns(r, r.viewer) && r.viewer === 'net' && r.phase === 'OFFLINE' && !r.ready);
-  const status = r => ({ ASSIGN: 'Chờ phân công', WORK: r.ready ? 'Đã tổng hợp – chờ trình ký báo cáo' : 'Đang ' + (r.mode === 'REVIEW' ? 'rà soát' : 'thẩm định'),
+  const status = r => r.mode === 'REVIEW' && r.phase === 'SIGN_MAIN' ? r.report && r.report.mainSigned ? 'Báo cáo đã ký chính thức – chờ chuyển' : 'Chờ ký chính thức báo cáo' : r.mode === 'REVIEW' && r.phase === 'SIGN_CO' ? r.report && r.report.coInitialled ? 'Báo cáo đã ký nháy – chờ trình' : 'Chờ ký nháy báo cáo' : ({ ASSIGN: 'Chờ phân công', WORK: r.ready ? 'Đã tổng hợp – chờ trình ký báo cáo' : 'Đang ' + (r.mode === 'REVIEW' ? 'rà soát' : 'thẩm định'),
     REVIEW_SUBMIT: 'Báo cáo đã ký hoàn tất – chờ trình LĐ TCT', CO_ASSIGN: 'Chờ phân công phối hợp', CO_WORK: 'Đang xử lý phối hợp', SIGN_MAIN: 'Chờ ký báo cáo chủ trì', SIGN_CO: 'Chờ ký báo cáo phối hợp',
     INBOX: 'Chờ LĐ TĐ cho ý kiến', DISPATCH: 'Chờ Văn thư luân chuyển', DECISION_ROUTE: 'Báo cáo đã ký – chờ trình Quyết định', SIGN_QD: 'Chờ LĐ TĐ ký Quyết định',
     OFFLINE: r.ready ? 'Đã ghi nhận kết quả TĐ' : 'Chờ ghi nhận kết quả TĐ', CLERK_SIGNED: 'Chờ ban hành', ISSUED: 'Đã ban hành – chờ chuyển', DONE: 'Đã chuyển kết quả về NET', LEGACY: 'Đang trình tại TCT' })[r.phase];
@@ -491,7 +492,7 @@
     if (!allowed || !allowed.length) return toast('Vai trò/trạng thái không được chuyển hồ sơ');
     registerRecipients(); pendingTransferAction = 'kh4Transfer'; currentTransferCfg = { main: '', co: [], send: [], allowed: allowed.map(k => 'khw_' + k) };
     const modal = document.getElementById('transferModal');
-    modalSnapshot = { kind, type, viewer: r && r.viewer, phase: r && r.phase, legacyRole: khptm2Role, legacyStep: khptm2Step,
+    modalSnapshot = { kind, type, viewer: r && r.viewer, phase: r && r.phase, receipt: r && r.receipt, legacyRole: khptm2Role, legacyStep: khptm2Step,
       allowed, summary: modal.querySelector('.route-opinion-summary').innerHTML,
       rows: ['routeSignFileRow', 'routeIssueFileRow'].map(id => { const row = document.getElementById(id); return { row, html: row.innerHTML, display: row.style.display }; }) };
     modal.classList.add('kh4-route'); document.getElementById('routeReceiverSearch').value = ''; renderRouteRecipients();
@@ -523,7 +524,7 @@
   }
   function confirmTransfer() {
     const r = current(), snap = modalSnapshot;
-    if (!snap || snap.type !== khptm2DeviceType || snap.legacyRole !== khptm2Role || snap.legacyStep !== khptm2Step || (snap.kind === 'workflow' && (!r || snap.viewer !== r.viewer || snap.phase !== r.phase))) return toast('Hồ sơ đã thay đổi; mở lại popup Chuyển');
+    if (!snap || snap.type !== khptm2DeviceType || snap.legacyRole !== khptm2Role || snap.legacyStep !== khptm2Step || (snap.kind === 'workflow' && (!r || snap.viewer !== r.viewer || snap.phase !== r.phase || snap.receipt !== r.receipt))) return toast('Hồ sơ đã thay đổi; mở lại popup Chuyển');
     const selected = selectedRouteRecipients(), recipient = selected.main && selected.main.id.replace('khw_', '');
     if (!recipient || !snap.allowed.includes(recipient)) { switchRouteTab('receiver'); return toast('Chọn 01 người xử lý chính thuộc tuyến xử lý hiện tại'); }
     const note = document.getElementById('transferNote').value.trim();
