@@ -228,6 +228,12 @@
 .kh2-modal-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 14px}.kh2-modal-grid .full{grid-column:1/-1}
 .kh2-paper-placeholder{border:1px dashed #a9becf;background:#f7fafc;padding:16px;text-align:center;color:#60788c;margin:14px 0}
 @media(max-width:1050px){.kh2-info-grid,.kh2-modal-grid{grid-template-columns:1fr}}
+/* Văn thư dùng popup Chuyển chung, không có thao tác ký hoặc người nhận ngoài hai vai trò TĐ. */
+#transferModal.khptm2-clerk-route button[onclick="openInitialSignModal()"],
+#transferModal.khptm2-clerk-route button[onclick="openDigitalSignModal()"],
+#transferModal.khptm2-clerk-route button[onclick^="generateTransferFile"],
+#transferModal.khptm2-clerk-route .route-receiver-toolbar button,
+#transferModal.khptm2-clerk-route .route-unit-block{display:none}
 </style>
 
 <style>
@@ -1023,7 +1029,7 @@ function selectedRouteRecipients(){const mainId=document.querySelector('input[na
 function updateRouteSelectedList(){const host=document.getElementById('routeSelectedList');if(!host)return;const s=selectedRouteRecipients();let html='';if(s.main)html+=`<div class="route-selected-item"><b>Xử lý chính:</b> ${s.main.name}<div class="mini">${s.main.title} · ${s.main.unit}</div></div>`;s.co.forEach(r=>html+=`<div class="route-selected-item"><b>Phối hợp:</b> ${r.name}<div class="mini">${r.title} · ${r.unit}</div></div>`);s.view.forEach(r=>html+=`<div class="route-selected-item"><b>Xem để biết:</b> ${r.name}<div class="mini">${r.title} · ${r.unit}</div></div>`);host.innerHTML=html||'<div class="mini">Chưa chọn người nhận</div>'}
 function generateTransferFile(type){toast(type==='sign'?'Đã sinh file trình ký từ Template':'Đã sinh file phát hành từ Template')}
 function toggleTransferFile(id){const el=document.getElementById(id);if(el){el.style.display='none';toast('Đã xóa file khỏi danh sách chuyển')}}
-function openTransferPreview(title){document.getElementById('transferPreviewTitle').textContent=title;document.getElementById('transferPreviewModal').classList.add('show')}
+function openTransferPreview(title){if(pendingTransferAction==='khbuildClerkToTD')return openKHPTM2Preview(title.indexOf('Tờ trình')===0?'submission':'outgoing');document.getElementById('transferPreviewTitle').textContent=title;document.getElementById('transferPreviewModal').classList.add('show')}
 function closeTransferPreview(){document.getElementById('transferPreviewModal').classList.remove('show')}
 function openDigitalSignModal(){document.getElementById('digitalSignModal').classList.add('show')}
 function closeDigitalSignModal(){document.getElementById('digitalSignModal').classList.remove('show')}
@@ -1031,7 +1037,7 @@ function finishDigitalSign(){closeDigitalSignModal();toast('Đã ký số văn b
 function openInitialSignModal(){document.getElementById('initialSignModal').classList.add('show')}
 function closeInitialSignModal(){document.getElementById('initialSignModal').classList.remove('show')}
 function finishInitialSign(){closeInitialSignModal();toast('Đã ký nháy văn bản (demo)')}
-function hideTransferModal(){document.getElementById('transferModal').classList.remove('show')}
+function hideTransferModal(){document.getElementById('transferModal').classList.remove('show');configureKHPTM2ClerkModal(false)}
 function returnToHomeAfterTransfer(msg){syncRoleHeader();goHome();if(msg)toast(msg)}
 function confirmTransfer(){const sel=selectedRouteRecipients();if(!sel.main){switchRouteTab('receiver');return toast('Chọn 01 người xử lý chính')}const note=(document.getElementById('transferNote')?.value||'').trim();hideTransferModal();if(pendingTransferAction==='gnvTransfer'){toast(currentTestRole==='LĐ Đơn vị được GNV'?'Đã chuyển GNV: PM dự án xử lý chính, PM KTM đồng xử lý':'Đã chuyển Văn bản GNV theo ý kiến lãnh đạo');pendingTransferAction='';goHome();return}else if(pendingTransferAction==='assign'){logFlow('LĐ Đơn vị được GNV','Bước 1.1 - Phân công Trần Văn B làm PM dự án'+(note?' · '+note:''));flowStep='1.2';returnToHomeAfterTransfer('Đã giao việc cho PM dự án')}else if(pendingTransferAction==='submitLeader'){logFlow('PM dự án','Bước 1.7 - Trình Đề nghị và Dự thảo Quyết định tới LĐ Đơn vị được GNV'+(note?' · '+note:''));flowStep='1.8';leaderApproved=false;returnToHomeAfterTransfer('Đã trình LĐ Đơn vị được GNV')}else if(pendingTransferAction==='submitLDTCT'){logFlow('LĐ Đơn vị được GNV','Bước 1.8 - Chuyển hồ sơ đã ký/xác nhận tới LĐTCT'+(note?' · '+note:''));flowStep='1.9';ldtctResult='';returnToHomeAfterTransfer('Đã chuyển tiếp LĐTCT')}pendingTransferAction=''}
 function acceptTask(){logFlow('PM dự án','Bước 1.2 - Tiếp nhận nhiệm vụ thành lập Tổ triển khai dự án');flowStep='1.3';renderFlowDemo()}
@@ -1485,6 +1491,7 @@ function renderKHPTMPairTTP(){
 }
 function khptmPairTopActions(host){
   var s=khptmPairState();var html='';
+  if(khptm2Role==='Văn thư'){host.innerHTML=khptm2ClerkActionsHtml();return;}
   if(khptm2Role==='VNPT TTP'&&khptm2Step==='BPAIRCOORD'){
     html+="<button onclick=\"toast('Đã lưu nháp bản phối hợp VNPT TTP')\">Lưu nháp</button>";
     html+="<button class=\"khptm-emphasis\" onclick=\"openKHPTM2Transfer('khpairSubmitReview')\">Chuyển Ban KT thẩm định</button>";
@@ -1514,11 +1521,6 @@ function khptmPairTopActions(host){
     html+="<button onclick=\"openKHPTM2Preview('draftDecision')\">Xem dự thảo QĐ Tập đoàn</button>";
     html+="<button class=\"khptm-danger\" onclick=\"khptm2ReturnSpecialist()\">Trả lại</button>";
     html+=khptm2LDTCTSigned?"<button class=\"khptm-emphasis\" onclick=\"openKHPTM2Transfer('khbuildToClerk')\">Chuyển</button>":"<button class=\"khptm-emphasis\" onclick=\"khptm2SignLDTCT()\">Ký số VB trình Tập đoàn</button>";
-  }else if(khptm2Role==='Văn thư'&&khptm2Step==='B4'){
-    html+="<button onclick=\"openKHPTM2Preview('outgoing')\">Xem văn bản đã ký</button>";
-    html+="<button class=\"khptm-emphasis\" onclick=\"issueKHPTM2()\">Ban hành</button>";
-  }else if(khptm2Role==='Văn thư'&&khptm2Step==='DONE'){
-    html+="<button onclick=\"openKHPTM2Preview('outgoing')\">Xem văn bản</button>";
   }
   host.innerHTML=html;
 }
@@ -1588,6 +1590,8 @@ let khptm2History=[{time:'30/09/2026 19:35',actor:'Hệ thống',text:'Khởi t�
 let khptm2Exchange=[];
 let khptm2ExchangeDraftFile='';
 let khptm2ProviderUnit='Ban KTM';
+let khptm2ClerkIssues={};
+let khptm2NextIssueNumber=813;
 let khptm2Issue={number:'',suffix:'KT',date:'2026-12-05',eoffice:''};
 
 function khptm2TypeTag(){if(khptm2DeviceType==='BRCĐ')return'BRCD';if(khptm2DeviceType==='CSHT')return'CSHT';return khptm2DeviceType==='Vô tuyến'?'Vo_tuyen':'Core'}
@@ -1627,6 +1631,7 @@ function openKHPTMBuildProcess(step){
 function resetKHPTMBuildFlow(){
   khptm2Step='B1';khptm2Role='Chuyên viên Ban KT';khptm2UnitLeaderSigned=false;khptm2LDTCTSigned=false;khptm2ResetRadioFlow();
   khptm2Issue={number:'',suffix:'KT',date:'2026-12-05',eoffice:''};
+  khptm2ClerkIssues[khptm2DeviceType]=khptm2Issue;
   khptm2History=[{time:new Date().toLocaleString('vi-VN',{hour12:false}),actor:'Hệ thống',text:'Reset luồng '+khptm2DeviceType+' về bước lập hồ sơ.'}];
   khptm2Exchange=[];khptm2ExchangeDraftFile='';khptm2ProviderUnit='Ban KTM';renderKHPTMBuild();toast('Đã reset luồng Xây dựng, trình KHPTM');
 }
@@ -1672,6 +1677,8 @@ function khptm2Log(actor,text){
   renderKHPTM2History();
 }
 function renderKHPTMBuild(){
+  khptm2Issue=khptm2ClerkIssue();
+  if(khptm2Role==='Văn thư'&&khptm2Issue.issued)khptm2Step='DONE';
   var sel=document.getElementById('khptm2Role');
   if(sel){
     var allowed=khptm2DeviceType==='Core di động'
@@ -1695,6 +1702,7 @@ function renderKHPTMBuild(){
 }
 function renderKHPTM2TopActions(){
   var h=document.getElementById('khptm2TopActions');if(!h)return;var html='';
+  if(khptm2Role==='Văn thư'){h.innerHTML=khptm2ClerkActionsHtml();return;}
   if(isKHPTMPairType()){khptmPairTopActions(h);return;}
 
 
@@ -1729,13 +1737,6 @@ function renderKHPTM2TopActions(){
       ? "<button class=\"khptm-emphasis\" onclick=\"openKHPTM2Transfer('khbuildToClerk')\">Chuyển</button>"
       : "<button class=\"khptm-emphasis\" onclick=\"khptm2SignLDTCT()\">Ký số VB trình Tập đoàn</button>";
 
-  }else if(khptm2Role==='Văn thư'&&khptm2Step==='B4'){
-    html+="<button onclick=\"openKHPTM2Preview('outgoing')\">Xem văn bản đã ký</button>";
-    html+="<button class=\"khptm-emphasis\" onclick=\"issueKHPTM2()\">Ban hành</button>";
-
-  }else if(khptm2Role==='Văn thư'&&khptm2Step==='DONE'){
-    html+="<button onclick=\"openKHPTM2Preview('outgoing')\">Xem văn bản</button>";
-    html+="<button class=\"khptm-emphasis\" onclick=\"toast('Đã chuyển hồ sơ trình Tập đoàn qua eOffice (demo)')\">Chuyển Tập đoàn</button>";
   }
 
   h.innerHTML=html;
@@ -1788,16 +1789,93 @@ function renderKHPTM2Provider(){
 }
 function renderKHPTM2UnitLeader(){var h=document.getElementById('khptm2PanelUnitLeader');if(h)h.innerHTML=khptm2LeaderPreviewHtml('LĐ Ban KT')}
 function renderKHPTM2LDTCT(){var h=document.getElementById('khptm2PanelLDTCT');if(h)h.innerHTML=khptm2LeaderPreviewHtml('LĐTCT')}
+function khptm2ClerkIssue(){
+  if(!khptm2ClerkIssues[khptm2DeviceType])khptm2ClerkIssues[khptm2DeviceType]={number:'',suffix:'KT',date:'2026-12-05',eoffice:''};
+  return khptm2ClerkIssues[khptm2DeviceType];
+}
+function khptm2ClerkActionsHtml(){
+  var issue=khptm2ClerkIssue();
+  return '<button class="khptm-emphasis" onclick="issueKHPTM2()" '+(issue.issued||!khptm2LDTCTSigned||khptm2Step!=='B4'?'disabled':'')+'>Ban hành</button>'+
+    '<button class="khptm-emphasis" onclick="openKHPTM2Transfer(\'khbuildClerkToTD\')" '+(!issue.issued||issue.transferredTo?'disabled':'')+'>Chuyển</button>';
+}
+function khptm2ClerkPaperHtml(){
+  var issue=khptm2ClerkIssue();
+  return '<div style="text-align:center"><b>TỔNG CÔNG TY HẠ TẦNG MẠNG - VNPT NET</b></div>'+
+    '<p>Số: '+esc(issue.number||'...')+'/VNPT Net-'+esc(issue.suffix||'KT')+'</p>'+
+    '<p style="text-align:right">Ngày ban hành: '+esc(formatDateVN(issue.date)||'...')+'</p>'+
+    (issue.eoffice?'<p>Số eOffice/VBKS: '+esc(issue.eoffice)+'</p>':'')+
+    '<h2>VĂN BẢN TRÌNH TẬP ĐOÀN</h2><h3>V/v trình phê duyệt Kế hoạch phát triển mạng '+esc(khptm2DeviceType)+' năm 2027</h3>'+
+    '<div class="kh2-paper-placeholder">Cần khảo sát khách hàng để chốt nội dung/field chi tiết của văn bản.</div>'+
+    '<div class="sign"><b>LÃNH ĐẠO TỔNG CÔNG TY</b><br><br><br>'+(khptm2LDTCTSigned?'(Đã ký số)':'(Chờ ký)')+'</div>';
+}
+function updateKHPTM2ClerkIssue(){
+  var issue=khptm2ClerkIssue();if(issue.issued)return;
+  ['Number','Suffix','Date','Eoffice'].forEach(function(key){
+    var input=document.getElementById('kh2Issue'+key);if(input)issue[key.toLowerCase()]=input.value.trim();
+  });
+  issue.suffix=issue.suffix||'KT';khptm2Issue=issue;
+  var paper=document.getElementById('kh2ClerkPaper');if(paper)paper.innerHTML=khptm2ClerkPaperHtml();
+}
+function takeKHPTM2IssueNumber(){
+  if(khptm2Role!=='Văn thư'||khptm2ClerkIssue().issued||khptm2Step!=='B4')return;
+  var input=document.getElementById('kh2IssueNumber');if(!input)return;
+  // Mô phỏng lấy số trong bản demo; chưa kết nối dịch vụ cấp số/eOffice.
+  while(Object.values(khptm2ClerkIssues).some(function(issue){return issue.number===String(khptm2NextIssueNumber)}))khptm2NextIssueNumber++;
+  input.value=String(khptm2NextIssueNumber++);updateKHPTM2ClerkIssue();toast('Đã lấy số văn bản (demo)');
+}
 function renderKHPTM2Clerk(){
   var h=document.getElementById('khptm2PanelClerk');if(!h)return;
-  if(khptm2Step==='DONE'){
-    h.innerHTML='<div class="section"><h3>Hồ sơ đã trình Tập đoàn</h3><div class="body"><div class="khptm-output"><b>'+(khptm2Issue.number||'...')+'/VNPT Net-'+khptm2Issue.suffix+'</b> · '+formatDateVN(khptm2Issue.date)+' · eOffice '+(khptm2Issue.eoffice||'--')+'<br>Văn bản TCT trình Tập đoàn xin phê duyệt KHPTM hàng năm.</div></div></div>';return;
-  }
-  h.innerHTML='<div class="section"><h3>Cấp số, hoàn thiện thể thức và phát hành</h3><div class="body">'+
-    '<div class="khptm-note">Văn bản TCT trình Tập đoàn đã được LĐTCT ký. Văn thư cấp số/ngày/eOffice trước khi chuyển Tập đoàn.</div>'+
-    '<div class="khptm-issue-grid"><div><label>Số văn bản <span class="req">*</span></label><input id="kh2IssueNumber"></div><div><label>Hậu tố</label><input id="kh2IssueSuffix" value="KT"></div><div><label>Ngày ban hành <span class="req">*</span></label><input id="kh2IssueDate" type="date" value="2026-12-05"></div><div><label>Số eOffice/VBKS</label><input id="kh2IssueEoffice"></div></div>'+
-    '</div></div>';
+  var issue=khptm2ClerkIssue(),locked=issue.issued?' readonly':'',disabled=issue.issued||khptm2Step!=='B4'?' disabled':'';
+  var state=issue.transferredTo?'Đã chuyển tới '+esc(issue.transferredTo):issue.issued?'Đã ban hành – chờ chuyển Tập đoàn':khptm2LDTCTSigned?'Đã ký số – chờ ban hành':'Chờ LĐTCT ký văn bản';
+  h.innerHTML='<div class="section"><h3>Văn bản ban hành</h3><div class="body">'+
+    '<div class="khptm-note"><b>Văn bản:</b> Văn bản TCT trình Tập đoàn xin phê duyệt KH PTM hàng năm</div>'+
+    '<div class="khptm-issue-grid" style="margin-bottom:12px"><div><label>Số văn bản <span class="req">*</span></label><div style="display:flex;gap:6px"><input id="kh2IssueNumber" value="'+esc(issue.number)+'" oninput="updateKHPTM2ClerkIssue()"'+locked+' style="min-width:0;flex:1"><button onclick="takeKHPTM2IssueNumber()"'+disabled+'>Lấy số</button></div></div>'+
+    '<div><label>Hậu tố</label><input id="kh2IssueSuffix" value="'+esc(issue.suffix)+'" oninput="updateKHPTM2ClerkIssue()"'+locked+'></div>'+
+    '<div><label>Ngày ban hành <span class="req">*</span></label><input id="kh2IssueDate" type="date" value="'+esc(issue.date)+'" oninput="updateKHPTM2ClerkIssue()"'+locked+'></div>'+
+    '<div><label>Số eOffice/VBKS</label><input id="kh2IssueEoffice" value="'+esc(issue.eoffice)+'" oninput="updateKHPTM2ClerkIssue()"'+locked+'></div></div>'+
+    '<div class="khptm-doc-preview"><div class="khptm-paper" id="kh2ClerkPaper">'+khptm2ClerkPaperHtml()+'</div></div>'+
+    '<div class="khptm-output"><b>Trạng thái:</b> '+state+'</div></div></div>';
 }
+function configureKHPTM2ClerkModal(active){
+  var modal=document.getElementById('transferModal');if(!modal)return;
+  modal.classList.toggle('khptm2-clerk-route',active);
+  var summary=modal.querySelector('.route-opinion-summary');if(!summary)return;
+  if(active){
+    if(summary.dataset.originalHtml===undefined)summary.dataset.originalHtml=summary.innerHTML;
+    summary.innerHTML='<div><b>Tổng hợp ý kiến</b></div>'+khptm2History.map(function(item){return '<div class="route-opinion-row"><b>'+esc(item.actor)+'</b><div class="mini">'+esc(item.time)+' · '+esc(item.text)+'</div></div>'}).join('');
+  }else if(summary.dataset.originalHtml!==undefined){summary.innerHTML=summary.dataset.originalHtml;delete summary.dataset.originalHtml}
+}
+function openKHPTM2ClerkTransfer(){
+  var issue=khptm2ClerkIssue();
+  if(khptm2Role!=='Văn thư'||!issue.issued||khptm2Step!=='DONE')return toast('Ban hành văn bản trước khi chuyển Tập đoàn');
+  if(issue.transferredTo)return toast('Hồ sơ đã chuyển tới '+issue.transferredTo);
+  [{id:'kh2tdclerk',name:'Văn thư Tập đoàn',title:'Văn thư tiếp nhận hồ sơ',unit:'Tập đoàn'},
+   {id:'kh2tdleader',name:'LĐ Tập đoàn',title:'Lãnh đạo Tập đoàn',unit:'Tập đoàn'}].forEach(function(r){if(!routeRecipients.some(function(x){return x.id===r.id}))routeRecipients.push(r)});
+  pendingTransferAction='khbuildClerkToTD';
+  currentTransferCfg={main:'',co:[],send:[],allowed:['kh2tdclerk','kh2tdleader']};
+  var search=document.getElementById('routeReceiverSearch');if(search)search.value='';
+  renderRouteRecipients();configureKHPTM2ClerkModal(true);
+  var sign=document.querySelector('#routeSignFileRow .route-file-name'),file=document.querySelector('#routeIssueFileRow .route-file-name');
+  if(sign)sign.textContent='To_trinh_LDTCT_phe_duyet_KHPTM_'+khptm2TypeTag()+'_2027_da_ky.pdf';
+  if(file)file.textContent='VB_TCT_trinh_TD_KHPTM_'+khptm2TypeTag()+'_2027_'+issue.number+'.pdf';
+  ['routeSignFileRow','routeIssueFileRow'].forEach(function(id){var row=document.getElementById(id);if(row){row.style.display='';var check=row.querySelector('.route-check');if(check)check.checked=true}});
+  var note=document.getElementById('transferNote');if(note)note.value='Chuyển văn bản '+issue.number+'/VNPT Net-'+issue.suffix+' đã ban hành cùng hồ sơ KHPTM '+khptm2DeviceType+' tới Tập đoàn.';
+  switchRouteTab('receiver');document.getElementById('transferModal').classList.add('show');
+}
+function confirmKHPTM2ClerkTransfer(){
+  var issue=khptm2ClerkIssue();
+  if(khptm2Role!=='Văn thư'||!issue.issued||khptm2Step!=='DONE'||issue.transferredTo)return toast('Hồ sơ không ở trạng thái chờ chuyển Tập đoàn');
+  var selected=selectedRouteRecipients();
+  if(!selected.main||!['kh2tdclerk','kh2tdleader'].includes(selected.main.id)){switchRouteTab('receiver');return toast('Chọn Văn thư Tập đoàn hoặc LĐ Tập đoàn xử lý chính')}
+  var row=document.getElementById('routeIssueFileRow'),check=row?row.querySelector('.route-check'):null;
+  if(!row||row.style.display==='none'||!check||!check.checked){switchRouteTab('files');return toast('Chọn văn bản đã ban hành để chuyển')}
+  var note=document.getElementById('transferNote').value.trim();
+  issue.transferredTo=selected.main.name;issue.transferredAt=new Date().toLocaleString('vi-VN',{hour12:false});
+  var others=selected.co.map(function(r){return r.name}).join(', '),view=selected.view.map(function(r){return r.name}).join(', ');
+  khptm2Log('Văn thư','Chuyển hồ sơ KHPTM '+khptm2DeviceType+' và văn bản '+issue.number+'/VNPT Net-'+issue.suffix+' tới '+selected.main.name+(others?' · Phối hợp: '+others:'')+(view?' · Xem để biết: '+view:'')+(note?' · '+note:''));
+  pendingTransferAction='';hideTransferModal();renderKHPTMBuild();toast('Đã chuyển hồ sơ tới '+selected.main.name);
+}
+
 function khptm2DocRow(stt,signed,main,related,number,eoffice,level,signer,group,file,action){
   return '<tr>'+
     '<td class="center">'+stt+'</td>'+
@@ -1978,6 +2056,7 @@ function openKHPTM2Preview(type){
   if(type==='submission'){title.textContent='Tờ trình LĐ TCT phê duyệt KH PTM';paper.innerHTML='<div style="text-align:center"><b>TỔNG CÔNG TY HẠ TẦNG MẠNG - VNPT NET</b></div><h2>TỜ TRÌNH</h2><h3>Về việc phê duyệt/thông qua Kế hoạch phát triển mạng '+khptm2DeviceType+' năm 2027</h3><div class="kh2-paper-placeholder">Cần khảo sát khách hàng để chốt nội dung/field chi tiết của Tờ trình.</div><div class="sign"><b>LÃNH ĐẠO BAN KT</b><br><br><br>'+(khptm2UnitLeaderSigned?'(Đã ký số)':'(Chờ ký)')+'</div>'}
   if(type==='draftDecision'){title.textContent='Dự thảo Quyết định phê duyệt KH PTM hàng năm của Tập đoàn';paper.innerHTML='<div style="text-align:center"><b>TẬP ĐOÀN BƯU CHÍNH VIỄN THÔNG VIỆT NAM</b></div><h2>QUYẾT ĐỊNH</h2><h3>Phê duyệt Kế hoạch phát triển mạng năm 2027</h3><div class="kh2-paper-placeholder">Cần khảo sát khách hàng để chốt nội dung/field chi tiết của Quyết định.</div>'}
   if(type==='outgoing'){title.textContent='Văn bản TCT trình Tập đoàn xin phê duyệt KH PTM hàng năm';paper.innerHTML='<div style="text-align:center"><b>TỔNG CÔNG TY HẠ TẦNG MẠNG - VNPT NET</b></div><p>Số: .../VNPT Net-KT</p><h2>VĂN BẢN TRÌNH TẬP ĐOÀN</h2><h3>V/v trình phê duyệt Kế hoạch phát triển mạng '+khptm2DeviceType+' năm 2027</h3><div class="kh2-paper-placeholder">Cần khảo sát khách hàng để chốt nội dung/field chi tiết của văn bản.</div><div class="sign"><b>LÃNH ĐẠO TỔNG CÔNG TY</b><br><br><br>'+(khptm2LDTCTSigned?'(Đã ký số)':'(Chờ ký)')+'</div>'}
+  if(type==='outgoing'&&khptm2Role==='Văn thư')paper.innerHTML=khptm2ClerkPaperHtml();
   document.getElementById('khptmPreviewModal').classList.add('show');
 }
 function ensureKHPTM2Recipients(){
@@ -2097,6 +2176,7 @@ function setKHPTM2RouteFiles(action){
   }
 }
 function openKHPTM2Transfer(action){
+  if(action==='khbuildClerkToTD')return openKHPTM2ClerkTransfer();
   ensureKHPTM2Recipients();pendingTransferAction=action;
   if(isKHPTMPairType()){
     var pairCfg={
@@ -2160,9 +2240,15 @@ function khptm2SignLDTCT(){if(khptm2Step!=='B3'||khptm2Role!=='LĐTCT')return to
 function khptm2ToClerk(){if(!khptm2LDTCTSigned)return toast('LĐTCT cần ký số Văn bản trình Tập đoàn trước khi chuyển');khptm2Log('LĐTCT','Chuyển Văn thư cấp số, phát hành hồ sơ trình Tập đoàn');khptm2Step='B4';khptm2Role='Văn thư';renderKHPTMBuild();window.scrollTo({top:0,behavior:'smooth'})}
 function khptm2ReturnSpecialist(){khptm2Log(khptm2Role,'Trả hồ sơ về Chuyên viên Ban KT để hoàn thiện');khptm2Step='B1';khptm2Role='Chuyên viên Ban KT';khptm2UnitLeaderSigned=false;khptm2LDTCTSigned=false;renderKHPTMBuild();toast('Đã trả hồ sơ về Chuyên viên Ban KT')}
 function issueKHPTM2(){
-  khptm2Issue.number=(document.getElementById('kh2IssueNumber').value||'').trim();khptm2Issue.suffix=(document.getElementById('kh2IssueSuffix').value||'KT').trim();khptm2Issue.date=document.getElementById('kh2IssueDate').value||'';khptm2Issue.eoffice=(document.getElementById('kh2IssueEoffice').value||'').trim();
-  if(!khptm2Issue.number||!khptm2Issue.date)return toast('Nhập Số văn bản và Ngày ban hành');
-  khptm2Log('Văn thư','Cấp số và phát hành Văn bản TCT trình Tập đoàn xin phê duyệt KHPTM');khptm2Step='DONE';khptm2Role='Văn thư';renderKHPTMBuild();toast('Đã phát hành hồ sơ trình Tập đoàn');
+  var issue=khptm2ClerkIssue();
+  if(khptm2Role!=='Văn thư'||khptm2Step!=='B4'||issue.issued)return toast('Hồ sơ không ở trạng thái chờ ban hành');
+  if(!khptm2LDTCTSigned)return toast('LĐTCT cần ký văn bản trước khi ban hành');
+  updateKHPTM2ClerkIssue();
+  if(!issue.number||!issue.date)return toast('Nhập Số văn bản và Ngày ban hành');
+  if([issue.number,issue.suffix,issue.eoffice].some(function(value){return /[<>]/.test(value)}))return toast('Số văn bản, hậu tố và số eOffice/VBKS không được chứa ký tự < hoặc >');
+  issue.issued=true;khptm2Issue=issue;
+  khptm2Log('Văn thư','Ban hành văn bản '+issue.number+'/VNPT Net-'+issue.suffix+' ngày '+formatDateVN(issue.date)+(issue.eoffice?' · eOffice/VBKS '+issue.eoffice:'')+' trình Tập đoàn xin phê duyệt KHPTM '+khptm2DeviceType);
+  khptm2Step='DONE';renderKHPTMBuild();toast('Đã ban hành văn bản; chọn Chuyển để gửi Tập đoàn');
 }
 
 
@@ -2599,6 +2685,7 @@ confirmTransfer=function(){
 
 function confirmTransferFromModal(){
   var action=String(pendingTransferAction||'');
+  if(action==='khbuildClerkToTD')return confirmKHPTM2ClerkTransfer();
 
   // Fix riêng luồng Vô tuyến: NetX hoàn tất thẩm định -> Chuyên viên Ban KT.
   // Xử lý trực tiếp để chắc chắn đóng popup và chuyển đúng context màn hình.
