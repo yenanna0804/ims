@@ -324,7 +324,7 @@
   }
   function chooseBasis(id) {
     const r = creationDraft; if (!r || !edit(r)) return;
-    const input = readForm(r); r.data = input.data; r.rows = input.rows;
+    const input = readForm(r); r.data = input.data; r.rows = input.rows; r.feedback = null;
     const basis = kh4.approvedPlans().find(p => p.id === id); creationBasis = basis?.id || ''; r.basis = basis ? W.create(basis, r.id).basis : null;
     if (basis && r.data.name.startsWith('Đề xuất lựa chọn PAKT, CN và quy mô')) r.data.name = 'Đề xuất lựa chọn PAKT, CN và quy mô ' + basis.type + ' năm ' + basis.year;
     render();
@@ -356,7 +356,7 @@
     try { if (!r.basis) throw Error('Chọn KHPTM đã được phê duyệt làm căn cứ');
       const input = readForm(r); if (W.saveDraft(r, r.viewer, input.data, input.rows)) log(r, 'Lưu nháp đề xuất phiên bản ' + r.revision);
       if (r === creationDraft) { records.set(r.id, r); currentId = r.id; creationDraft = null; log(r, 'Tạo đề xuất căn cứ ' + r.basis.title + ' · QĐ ' + r.basis.number); }
-      ensureDocuments(r); if (!silent) { render(); notify('Đã lưu nháp đề xuất'); } return true; }
+      ensureDocuments(r); r.feedback = null; if (!silent) { render(); notify('Đã lưu nháp đề xuất'); } return true; }
     catch (error) { notify(error.message,true,!r.basis?'#kh5Basis':null); return false; }
   }
   function total(r) { return r.rows.reduce((sum, row) => sum + Number(row.quantity) * Number(row.price || 0), 0); }
@@ -392,7 +392,7 @@
   }
   function generate() {
     const r = current(); if (!edit(r) || !save(true)) return;
-    try { W.validate(r.data, r.rows); const pair = [buildFile(r, 'report'), buildFile(r, 'catalog')], old = r.files.filter(f => f.generated); W.installPair(r, r.viewer, pair); old.forEach(f => URL.revokeObjectURL(f.url));
+    try { W.validate(r.data, r.rows); const pair = [buildFile(r, 'report'), buildFile(r, 'catalog')]; W.installPair(r, r.viewer, pair);
       log(r, 'Tạo đồng thời Báo cáo đề xuất và file danh mục từ template · phiên bản ' + r.revision); r.tab = 'files'; render(); notify('Đã thêm Báo cáo đề xuất và file danh mục vào Tài liệu đính kèm'); }
     catch (error) { notify(error.message,true,!r.basis?'#kh5Basis':null); }
   }
@@ -536,7 +536,7 @@
   function extTab(name, el) { const r = current(); if (!r || !['files', 'route', 'exchange'].includes(name)) return; r.tab = name;
     page.querySelectorAll('[data-kh5-ext]').forEach(tab => tab.classList.toggle('active', tab.dataset.kh5Ext === name));
     ['files', 'route', 'exchange'].forEach(n => document.getElementById('kh5Ext' + n[0].toUpperCase() + n.slice(1)).classList.toggle('active', n === name)); }
-  function uploadRow() { const row = sharedUploadRow.cloneNode(true); row.cells[5].querySelector('select').innerHTML = '<option>Hồ sơ liên quan</option><option>Số liệu hiện trạng</option><option>Báo cáo đề xuất</option><option>File danh mục</option>'; row.querySelector('.linklike').setAttribute('onclick', "this.closest('tr').remove()"); return row.outerHTML; }
+  function uploadRow() { const row = sharedUploadRow.cloneNode(true); row.cells[0].querySelector('input').disabled = true; row.cells[0].title = 'Bước 5 duyệt nội dung, không yêu cầu ký số'; row.cells[5].querySelector('select').innerHTML = '<option>Hồ sơ liên quan</option><option>Số liệu hiện trạng</option><option>Báo cáo đề xuất</option><option>File danh mục</option>'; row.querySelector('.linklike').setAttribute('onclick', "this.closest('tr').remove()"); return row.outerHTML; }
   function addUploadRow() { if (canAttach(current())) page.querySelector('.pm-ext-add-table tbody').insertAdjacentHTML('beforeend', uploadRow()); }
   function saveUploads() {
     const r = current(); if (!canAttach(r)) return; let count = 0;
@@ -557,7 +557,7 @@
     }
     documents.forEach(file=>file.posted=true);
     r.exchange.unshift({ actor: W.roles[r.viewer], requestId: q?.id, text: d.text.trim(), time: now(), attachments: [...documents.map(file=>({kind:file.infoKind,code:file.infoCode,name:file.name,id:file.id,doc:{document:structuredClone(file.document),version:file.version}})),...(d.file?[{...d.file}]:[])] }); r.drafts[r.viewer] = { text: '', file: null, attachments:[] }; renderExtended(r);notify('Đã gửi nội dung trao đổi kèm văn bản'); } catch(error) {notify(error.message,true);} }
-  function refreshSubmission(r) { const old = r.submission; if (!old) return; const html = paper(r, 'submission'), blob = KHStep5Office.docx(paragraphs(r, 'submission')); URL.revokeObjectURL(old.url); old.blob = blob; old.url = URL.createObjectURL(blob); old.html = html; }
+  function refreshSubmission(r) { const old = r.submission; if (!old) return; const html = paper(r, 'submission'), blob = KHStep5Office.docx(paragraphs(r, 'submission')); old.blob = blob; old.url = URL.createObjectURL(blob); old.html = html; }
   function transferFile(r, file) {
     const row = sharedTransferFileRow.cloneNode(true); row.removeAttribute('id');
     const buttons = [...row.querySelectorAll('button')]; buttons.filter(b => /openInitialSignModal|openDigitalSignModal/.test(b.getAttribute('onclick') || '')).forEach(b => b.remove());
@@ -566,7 +566,7 @@
     const download = document.createElement('a'); download.className = buttons[2].className; download.textContent = buttons[2].textContent; download.href = file.url || '#'; download.download = file.name; if (!file.url) download.style.display = 'none'; buttons[2].replaceWith(download);
     const check = row.querySelector('input'); check.checked = true; check.setAttribute('checked', ''); check.dataset.kh5TransferFile = file.id;
     row.querySelector('.route-file-name').textContent = file.name + ' (Người gửi: ' + W.roles[r.viewer] + ')';
-    return '<div class="route-file-line"><div class="route-file-label">' + (file.docType === 'submission' ? 'Tờ trình / Báo cáo đề xuất' : file.docType === 'catalog' ? 'File danh mục' : 'Văn bản liên quan') + '</div><div class="route-file-main">' + row.outerHTML + '</div></div>';
+    return '<div class="route-file-line"><div class="route-file-label">' + (file.docType === 'submission' ? 'Tờ trình đề xuất' : file.docType === 'report' ? 'Báo cáo đề xuất' : file.docType === 'catalog' ? 'File danh mục' : 'Văn bản liên quan') + '</div><div class="route-file-main">' + row.outerHTML + '</div></div>';
   }
   const previousSelectedRecipients = selectedRouteRecipients;
   selectedRouteRecipients = function () {
@@ -609,8 +609,7 @@
   }
   function transfer(preset) {
     const r = current(); if (!own(r)) return notify('Bạn không được giao xử lý chính');
-    if (edit(r) && !save(true)) return;
-    if (edit(r)) ensureDocuments(r);
+    if (edit(r)) { if (!save(true)) return; render(); }
     const allowed = W.allowed(r, r.viewer); if (!allowed.length) return notify('Chưa có hướng chuyển thuộc nhiệm vụ hiện tại');
     const requestDoc=r.files.filter(f=>f.infoKind==='request' && f.authorKey===r.viewer).at(-1);
     if(!preset && edit(r) && requestDoc){const recipient=W.providers.find(p=>W.documentTargets(requestDoc).includes(p.unit));if(recipient && allowed.includes(recipient.lead))preset=recipient.lead;}
