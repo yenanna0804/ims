@@ -249,7 +249,6 @@
     <div class="submenu">
       <div class="subitem" onclick="event.stopPropagation();openKHPTMModule()">Thông báo/Hướng dẫn KHPTM</div>
       <div class="subitem" onclick="event.stopPropagation();openKHPTMBuildModule()">Xây dựng, trình KHPTM</div>
-      <div class="subitem" onclick="event.stopPropagation();openKHPTMPAKTModule()">Đề xuất lựa chọn PAKT, CN và quy mô</div>
     </div>
   </div>
   <div id="nav-project" class="item has-menu">QUẢN LÝ DỰ ÁN <span class="caret">▼</span>
@@ -1015,7 +1014,7 @@ const routeRecipients=[
  {id:'ldtct',name:'Nguyễn Việt Tiến',title:'LĐTCT',unit:'VNPT Net'},
  {id:'clerk',name:'Phùng Thị Liên',title:'Văn thư',unit:'VNPT Net'}
 ];
-function routeKeyFromName(s){s=s||'';if(s.includes('PM Ban KT'))return'kh5pm';if(s.includes('LĐ Ban KT'))return'kh5leader';if(s.includes('Trần Văn B'))return'pm';if(s.includes('Lê Văn D'))return'ktm';if(s.includes('Nguyễn Văn Q'))return'leader';if(s.includes('Nguyễn Việt Tiến'))return'ldtct';if(s.includes('Phùng Thị Liên')||s.includes('Văn thư'))return'clerk';return''}
+function routeKeyFromName(s){s=s||'';if(s.includes('Trần Văn B'))return'pm';if(s.includes('Lê Văn D'))return'ktm';if(s.includes('Nguyễn Văn Q'))return'leader';if(s.includes('Nguyễn Việt Tiến'))return'ldtct';if(s.includes('Phùng Thị Liên')||s.includes('Văn thư'))return'clerk';return''}
 function openTransfer(action){
  pendingTransferAction=action;
  currentTransferCfg={assign:{title:'Giao nhiệm vụ cho PM',main:'Trần Văn B - PM dự án',co:['PM KTM - Lê Văn D'],send:['LĐ Ban KHĐT']},submitLeader:{title:'Trình LĐ Đơn vị được GNV',main:'Nguyễn Văn Q - LĐ Ban QLDA',co:[],send:['PM KTM - Lê Văn D']},submitLDTCT:{title:'Trình LĐTCT',main:'Nguyễn Việt Tiến - Tổng Giám đốc',co:[],send:['Văn thư']}}[action]||{title:'Chuyển xử lý',main:'Nguyễn Văn Q - LĐ Ban QLDA',co:[],send:[]};
@@ -1030,7 +1029,7 @@ function selectedRouteRecipients(){const mainId=document.querySelector('input[na
 function updateRouteSelectedList(){const host=document.getElementById('routeSelectedList');if(!host)return;const s=selectedRouteRecipients();let html='';if(s.main)html+=`<div class="route-selected-item"><b>Xử lý chính:</b> ${s.main.name}<div class="mini">${s.main.title} · ${s.main.unit}</div></div>`;s.co.forEach(r=>html+=`<div class="route-selected-item"><b>Phối hợp:</b> ${r.name}<div class="mini">${r.title} · ${r.unit}</div></div>`);s.view.forEach(r=>html+=`<div class="route-selected-item"><b>Xem để biết:</b> ${r.name}<div class="mini">${r.title} · ${r.unit}</div></div>`);host.innerHTML=html||'<div class="mini">Chưa chọn người nhận</div>'}
 function generateTransferFile(type){toast(type==='sign'?'Đã sinh file trình ký từ Template':'Đã sinh file phát hành từ Template')}
 function toggleTransferFile(id){const el=document.getElementById(id);if(el){el.style.display='none';toast('Đã xóa file khỏi danh sách chuyển')}}
-function openTransferPreview(title){if(String(pendingTransferAction||'').startsWith('kh5')&&window.kh5&&typeof window.kh5.openSharedTransferPreview==='function')return window.kh5.openSharedTransferPreview(title);if(pendingTransferAction==='khbuildClerkToTD')return openKHPTM2Preview(title.indexOf('Tờ trình')===0?'submission':'outgoing');document.getElementById('transferPreviewTitle').textContent=title;document.getElementById('transferPreviewModal').classList.add('show')}
+function openTransferPreview(title){if(pendingTransferAction==='khbuildClerkToTD')return openKHPTM2Preview(title.indexOf('Tờ trình')===0?'submission':'outgoing');document.getElementById('transferPreviewTitle').textContent=title;document.getElementById('transferPreviewModal').classList.add('show')}
 function closeTransferPreview(){document.getElementById('transferPreviewModal').classList.remove('show')}
 function openDigitalSignModal(){document.getElementById('digitalSignModal').classList.add('show')}
 function closeDigitalSignModal(){document.getElementById('digitalSignModal').classList.remove('show')}
@@ -2686,7 +2685,6 @@ confirmTransfer=function(){
 
 function confirmTransferFromModal(){
   var action=String(pendingTransferAction||'');
-  if(action.startsWith('kh5')&&window.kh5&&typeof window.kh5.confirmSharedTransfer==='function')return window.kh5.confirmSharedTransfer();
   if(action==='khbuildClerkToTD')return confirmKHPTM2ClerkTransfer();
 
   // Fix riêng luồng Vô tuyến: NetX hoàn tất thẩm định -> Chuyên viên Ban KT.
@@ -2770,5 +2768,4 @@ if(document.getElementById("team-create").classList.contains("active"))renderFlo
 <script src="khptm-step4.js"></script>
 <script src="khptm-info-template.js"></script>
 <script src="khptm-info.js"></script>
-<script src="khptm-step5.js"></script>
 </body></html>
