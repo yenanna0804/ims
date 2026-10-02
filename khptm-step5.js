@@ -616,27 +616,118 @@
     notify('Đã thêm tài liệu');
   }
 
-  function fileRow(index, signed, main, related, number, level, signer, group, name, action) {
-    return '<tr><td>' + index + '</td><td>' + (signed?'☒':'☐') + '</td><td><input type="checkbox" checked disabled></td><td><input type="checkbox" '+(main?'checked ':'')+'disabled></td><td><input type="checkbox" '+(related?'checked ':'')+'disabled></td><td>' + (number || '<span class="mini">Chưa cấp số</span>') + '</td><td></td><td>' + safe(level || '') + '</td><td>' + safe(signer || '') + '</td><td>' + safe(group || '') + '</td><td><span class="pm-ext-file" onclick="' + action + '">' + safe(name) + '</span></td><td>' + safe(ROLE_NAMES[viewer] || '') + '</td><td></td><td></td><td></td><td><button class="pm-ext-action" onclick="' + action + '">Xem</button></td></tr>';
+  function attachmentRows(r) {
+    const row = typeof khptm2DocRow === 'function' ? khptm2DocRow : function(stt,signed,main,related,number,eoffice,level,signer,group,file,action){
+      return '<tr>'+
+        '<td class="center">'+stt+'</td>'+
+        '<td class="center">'+signed+'</td>'+
+        '<td class="center"><input type="checkbox" checked disabled></td>'+
+        '<td class="center"><input type="checkbox" '+(main?'checked':'')+' disabled></td>'+
+        '<td class="center"><input type="checkbox" '+(related?'checked':'')+' disabled></td>'+
+        '<td>'+number+'</td>'+
+        '<td>'+eoffice+'</td>'+
+        '<td>'+level+'</td>'+
+        '<td>'+signer+'</td>'+
+        '<td><select disabled><option selected>'+group+'</option></select></td>'+
+        '<td><span class="pm-ext-file" onclick="'+action+'">'+file+'</span></td>'+
+        '<td>Chuyên viên Ban KT</td>'+
+        '<td>30/09/2026<br>19:35</td>'+
+        '<td></td><td></td>'+
+        '<td><button class="pm-ext-action" onclick="'+action+'">Xem</button></td>'+
+        '</tr>';
+    };
+    let i=1, rows='';
+    const source=sourceById(r.basisId);
+    if(source){
+      const number=source.decisionNumber&&source.decisionNumber!==SURVEY
+        ? safe(source.decisionNumber)+(source.decisionDate?'<br><span class="mini">'+safe(formatDate(source.decisionDate))+'</span>':'')
+        : '<span class="mini">Chưa cấp số</span>';
+      rows+=row(
+        String(i++),'☒',false,true,
+        number,'',
+        'Tập đoàn','LĐ Tập đoàn','QĐ phê duyệt KHPTM',
+        'QD_phe_duyet_KHPTM_'+({'Core di động':'Core','Vô tuyến':'Vo_tuyen','BRCĐ':'BRCD'})[r.type]+'_'+r.year+'.pdf',
+        'kh5.viewDecision()'
+      );
+    }
+    rows+=row(
+      String(i++),'☐',false,true,
+      '<span class="mini">Chưa cấp số</span>','',
+      'VNPT Net','--','File danh mục',
+      'Danh_muc_PAKT_CN_quy_mo_'+({'Core di động':'Core','Vô tuyến':'Vo_tuyen','BRCĐ':'BRCD'})[r.type]+'_'+r.year+'.xlsx',
+      "toast('Mở file danh mục PAKT, CN và quy mô (demo)')"
+    );
+    if(r.generated){
+      rows+=row(
+        String(i++),r.leaderSigned?'☒':'☐',true,false,
+        '<span class="mini">Chưa cấp số</span>','',
+        'Ban KT','LĐ Ban KT',documentTitle(r.generated.kind),
+        r.generated.name,'kh5.viewGenerated()'
+      );
+    }else{
+      rows+=row(
+        String(i++),'☐',true,false,
+        '<span class="mini">Chưa cấp số</span>','',
+        'Ban KT','Theo luồng trình ký',r.docType==='report'?'Báo cáo đề xuất':'Tờ trình',
+        documentName(r,r.docType),'kh5.generate()'
+      );
+    }
+    r.requests.forEach(req=>{
+      rows+=row(
+        String(i++),'☐',false,false,
+        '<span class="mini">Chưa cấp số</span>','',
+        'VNPT Net','Theo luồng xử lý','Yêu cầu cung cấp thông tin',
+        req.name,"kh5.viewRequest('"+req.id+"')"
+      );
+      if(req.response){
+        rows+=row(
+          String(i++),'☐',false,false,
+          '<span class="mini">Chưa cấp số</span>','',
+          req.unit||'Đơn vị cung cấp thông tin','Theo văn bản','Văn bản cung cấp thông tin',
+          req.response.name,"kh5.viewResponse('"+req.id+"')"
+        );
+      }
+    });
+    r.files.forEach(file=>{
+      rows+=row(
+        String(i++),'☐',false,false,
+        '<span class="mini">Chưa cấp số</span>','',
+        'VNPT Net','--',file.group||'Hồ sơ liên quan',
+        file.name,"toast('Mở tệp đính kèm: "+safe(file.name).replace(/'/g,"\\'")+"')"
+      );
+    });
+    return rows;
   }
 
   function extendedFilesHtml(r) {
-    let i = 1, rows = '';
-    const source = sourceById(r.basisId);
-    if (source) rows += fileRow(i++, true, false, true, source.decisionNumber && source.decisionNumber !== SURVEY ? safe(source.decisionNumber) : '<span class="kh5-survey-text">'+SURVEY+'</span>', 'Tập đoàn', 'LĐ Tập đoàn', 'QĐ phê duyệt KHPTM', 'Quyet_dinh_phe_duyet_KHPTM_'+r.type+'.pdf', 'kh5.viewDecision()');
-    if (r.generated) rows += fileRow(i++, r.leaderSigned, true, false, '', 'Ban KT', 'LĐ Ban KT', documentTitle(r.generated.kind), r.generated.name, 'kh5.viewGenerated()');
-    r.requests.forEach(req => {
-      rows += fileRow(i++, false, false, false, '', 'VNPT Net', '', 'Yêu cầu cung cấp thông tin', req.name, "kh5.viewRequest('"+req.id+"')");
-      if (req.response) rows += fileRow(i++, false, false, false, '', req.unit, '', 'Văn bản cung cấp thông tin', req.response.name, "kh5.viewResponse('"+req.id+"')");
-    });
-    r.files.forEach(file => {
-      rows += fileRow(i++, false, false, false, '', 'VNPT Net', '', file.group, file.name, "toast('Mở tệp đính kèm: "+safe(file.name).replace(/'/g,"\\'")+"')");
-    });
-    if (!rows) rows = '<tr><td colspan="16" class="mini">Chưa có tài liệu.</td></tr>';
+    const rows=attachmentRows(r);
+    const uploadRow=isEditable(r)?
+      '<table class="pm-ext-add-table">'+
+        '<colgroup><col style="width:72px"><col style="width:55px"><col style="width:48px"><col style="width:48px"><col><col style="width:126px"><col style="width:88px"><col style="width:94px"><col style="width:112px"><col style="width:116px"><col style="width:118px"><col style="width:34px"></colgroup>'+
+        '<thead><tr><th>Yêu cầu ký số<br>chính thức<br>(PDF,DOCX)</th><th>Cho ĐTVT<br>xem</th><th>VB<br>Chính</th><th>VB<br>LQ</th><th>Đường dẫn file</th><th>Nhóm tài liệu</th><th>Số VB</th><th>Ngày VB</th><th>Cấp ra VB</th><th>Người ký</th><th>Chức vụ người ký</th><th>Xóa</th></tr></thead>'+
+        '<tbody><tr>'+
+          '<td><input type="checkbox"></td>'+
+          '<td><input type="checkbox" checked></td>'+
+          '<td><input type="checkbox"></td>'+
+          '<td><input type="checkbox"></td>'+
+          '<td><input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx"></td>'+
+          '<td><select><option>-- Chọn --</option><option>File danh mục</option><option>Tờ trình</option><option>Báo cáo đề xuất</option><option>Yêu cầu cung cấp thông tin</option><option>Văn bản cung cấp thông tin</option><option>Hồ sơ liên quan</option></select></td>'+
+          '<td><input value=""></td>'+
+          '<td><input type="date"></td>'+
+          '<td><input value=""></td>'+
+          '<td><input placeholder="Người ký"></td>'+
+          '<td><select><option>-- Chọn --</option><option>Lãnh đạo Ban</option><option>Tổng Giám đốc</option><option>Phó Tổng Giám đốc</option><option>Khác</option></select></td>'+
+          '<td><span class="linklike" onclick="toast(\'Đã xóa dòng file\')">Xóa</span></td>'+
+        '</tr></tbody>'+
+      '</table>'+
+      '<div class="pm-ext-add-links"><span onclick="toast(\'Mở danh sách file từ template\')">Thêm file từ template</span><span onclick="toast(\'Đã thêm dòng file mới\')">Thêm File</span><span onclick="toast(\'Đã lưu tài liệu\')">Lưu tài liệu</span></div>'
+      :'';
 
-    const upload = isEditable(r) ? '<table class="pm-ext-add-table"><thead><tr><th style="width:72px">Yêu cầu ký số</th><th>Đường dẫn file</th><th style="width:180px">Nhóm tài liệu</th><th style="width:90px">Thao tác</th></tr></thead><tbody><tr><td><input type="checkbox"></td><td><input id="kh5AddFile" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx"></td><td><select id="kh5AddFileGroup"><option>File danh mục</option><option>Hồ sơ liên quan</option><option>Phụ lục</option></select></td><td><button class="pm-ext-action" onclick="kh5.addFile(document.getElementById(\'kh5AddFile\'),\'kh5AddFileGroup\')">Thêm File</button></td></tr></tbody></table>' : '';
-
-    return '<table class="pm-ext-table"><thead><tr><th>STT</th><th>Trạng thái<br>ký số</th><th>Cho ĐTVT<br>xem</th><th>VB<br>Chính</th><th>VB<br>LQ</th><th>Số, ngày VB</th><th>Số<br>eOffice</th><th>Cấp ra VB</th><th>Người ký</th><th>Nhóm tài liệu</th><th>Tên tài liệu</th><th>Người tạo</th><th>Thời gian<br>tạo</th><th>Thao tác<br>eOffice</th><th>Cập nhật<br>người ký</th><th>Thao tác<br>văn bản</th></tr></thead><tbody>' + rows + '</tbody></table>' + upload;
+    return '<table class="pm-ext-table">'+
+      '<colgroup><col class="pm-ext-w-stt"><col class="pm-ext-w-check"><col class="pm-ext-w-check"><col class="pm-ext-w-check-sm"><col class="pm-ext-w-check-sm"><col class="pm-ext-w-date"><col class="pm-ext-w-eoffice"><col class="pm-ext-w-level"><col class="pm-ext-w-signer"><col class="pm-ext-w-group"><col><col class="pm-ext-w-user"><col class="pm-ext-w-time"><col class="pm-ext-w-office"><col class="pm-ext-w-update"><col class="pm-ext-w-docact"></colgroup>'+
+      '<thead><tr><th>STT</th><th>Trạng thái<br>ký số</th><th>Cho ĐTVT<br>xem</th><th>VB<br>Chính</th><th>VB<br>LQ</th><th>Số, ngày VB</th><th>Số<br>eOffice</th><th>Cấp ra VB</th><th>Người ký</th><th>Nhóm tài liệu</th><th>Tên tài liệu</th><th>Người tạo</th><th>Thời gian<br>tạo</th><th>Thao tác<br>eOffice</th><th>Cập nhật<br>người ký</th><th>Thao tác<br>văn bản</th></tr></thead>'+
+      '<tbody>'+rows+'</tbody>'+
+    '</table>'+uploadRow;
   }
 
   function renderHistory(r) {
