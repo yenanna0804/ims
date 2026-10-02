@@ -400,7 +400,8 @@
   function button(label, action, enabled, css) { return '<button' + (css ? ' class="' + css + '"' : '') + ' onclick="' + action + '"' + (enabled ? '' : ' disabled') + '>' + label + '</button>'; }
   function actions(r) {
     const own = W.owns(r, r.viewer), u = W.units(r);
-    if (r.phase === 'STEP5_RECEIVED') return button('Xem Quyết định Tập đoàn', "kh4.previewDocument('decision')", !!r.decision) +
+    if (r.phase === 'STEP5_RECEIVED') return (window.kh5 && r.decision?.signed && r.decision?.issued && ['Core di động', 'Vô tuyến', 'BRCĐ'].includes(r.type) ?
+      button('Tạo đề xuất PAKT, CN và quy mô', "kh5.createScreen('" + r.id + "')", true) : '') + button('Xem Quyết định Tập đoàn', "kh4.previewDocument('decision')", !!r.decision) +
       button('Xem VB TCT trình Tập đoàn', 'kh4.previewSource()', true) + (r.report ? button('Xem Báo cáo thẩm định', "kh4.previewDocument('report')", true) : '');
     if (r.mode === 'REVIEW' && [u.lead,u.coLead].includes(r.viewer) && !W.canViewReviewReport(r, r.viewer)) return button('Chuyển', 'kh4.transfer()', W.allowed(r, r.viewer).length > 0);
     let html = r.mode === 'REVIEW' ? button('Xem Tờ trình LĐ TCT', 'kh4.previewSubmission()', true) + button('Xem dự thảo VB trình Tập đoàn', 'kh4.previewSource()', true) : button('Xem VB TCT trình Tập đoàn', 'kh4.previewSource()', true);
@@ -893,6 +894,11 @@
   };
   window.kh4 = { open, render, setRole, generate, upload, approve, sign, issue, updateIssue, takeNumber, transfer,
     extTab, sendExchange, exchangeFileChanged, previewSource, previewSubmission, previewFile, previewDocument,
-    saveBusiness, reportInput, selectDocument, returnSource, rejectReport, selectBanDocument, signBan };
+    saveBusiness, reportInput, selectDocument, returnSource, rejectReport, selectBanDocument, signBan,
+    approvedPlans: () => [...records.values()].filter(r => r.mode === 'APPRAISAL' &&
+      ['Core di động', 'Vô tuyến', 'BRCĐ'].includes(r.type) && r.signed && r.decision?.signed && r.decision?.issued)
+      .map(r => ({ id: r.id, type: r.type, year: r.year, title: 'KHPTM ' + r.type + ' năm ' + r.year,
+        number: numberText(r.issue), date: r.issue.date,
+        decision: { name: r.decision.name, kind: r.decision.kind, url: r.decision.url, html: r.decision.html, signed: true, issued: true } })) };
   mount();
 }());
