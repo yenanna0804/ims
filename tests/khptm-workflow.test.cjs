@@ -9,7 +9,7 @@ vm.runInContext(fs.readFileSync(path.join(__dirname, '../khptm-step4.js'), 'utf8
 const W = context.KHWorkflow;
 const recipients = (r, role) => Array.from(W.allowed(r, role));
 function work(type) {
-  const r = W.create(type, 'REVIEW', 'TD');
+  const r = W.create(type, 'REVIEW');
   W.transfer(r, 'reviewLead', 'reviewPM');
   return r;
 }
@@ -25,9 +25,9 @@ test('chỉ có một actor Văn thư TCT và một actor Văn thư Tập đoàn
 for (const type of ['Core di động', 'Vô tuyến', 'BRCĐ', 'CSHT']) {
   test(`${type}: chuyển TĐ mở đúng người nhận, chỉ xem VB TCT nguồn`, () => {
     for (const target of ['clerk','leader']) {
-      const r = W.create(type,'APPRAISAL','TD');
+      const r = W.create(type,'APPRAISAL');
       W.receiveGroupSource(r,target,{note:'Tiếp nhận hồ sơ trình TĐ'});
-      assert.equal(r.owner,target); assert.equal(r.viewer,target); assert.equal(r.scenario,'TD');
+      assert.equal(r.owner,target); assert.equal(r.viewer,target); assert.equal('scenario' in r,false);
       assert.equal(r.phase,target === 'clerk' ? 'DISPATCH' : 'INBOX');
       assert.equal(r.receipt.from,'tctClerk'); assert.equal(W.canViewAppraisalDocuments(r,target),false);
       assert.equal(W.canSign(r,target),false);
@@ -44,7 +44,7 @@ for (const type of ['Core di động', 'Vô tuyến', 'BRCĐ', 'CSHT']) {
     }
   });
   test(`${type}: tài liệu đơn vị thẩm định qua Văn thư rồi trình LĐ TĐ`, () => {
-    const r = W.create(type,'APPRAISAL','TD');
+    const r = W.create(type,'APPRAISAL');
     W.receiveGroupSource(r,'clerk'); W.transfer(r,'clerk','appraisalLead'); W.transfer(r,'appraisalLead','appraisalPM');
     r.report = {id:'app-report-v1'}; r.decision = {id:'app-decision-v1'};
     W.complete(r,'appraisalPM'); W.transfer(r,'appraisalPM','appraisalLead');
@@ -75,27 +75,23 @@ for (const type of ['Core di động', 'Vô tuyến', 'BRCĐ', 'CSHT']) {
     assert.equal(W.canForwardTCT(true,{issued:true},'DONE'),true);
     assert.equal(W.canForwardTCT(true,{issued:true,transferredTo:'Văn thư Tập đoàn'},'DONE'),false);
   });
-  test(`${type}: cùng Văn thư TCT nhưng điều phối rà soát khác ghi nhận ban hành`, () => {
+  test(`${type}: một luồng TĐ, Văn thư TCT không ban hành Quyết định TĐ`, () => {
     const r = W.create(type, 'REVIEW');
     W.receiveReview(r, 'tct', 'tctClerk', 'DISPATCH_REVIEW');
     assert.deepEqual(recipients(r,'tctClerk'), ['reviewLead','reviewCoLead','originalPM','tct']);
     assert.equal(W.canIssue(r,'tctClerk'), false);
-    const n = W.create(type, 'APPRAISAL', 'NET');
-    assert.deepEqual(recipients(n,'tctClerk'), []);
-    n.report = {official:true}; n.decision = {official:true};
-    W.complete(n,'net');
-    assert.deepEqual(recipients(n,'net'), ['tctClerk']);
-    W.transfer(n,'net','tctClerk',{note:'Ghi nhận QĐ TĐ đã ban hành'});
-    assert.equal(n.owner,'tctClerk'); assert.equal(n.phase,'CLERK_SIGNED');
-    assert.equal(n.receipt.purpose,'REGISTER_TD_ISSUE');
-    assert.equal(W.canIssue(n,'tctClerk'), true);
-    n.receipt.from = 'clerk'; assert.equal(W.canIssue(n,'tctClerk'), false);
-    n.receipt.from = 'net'; n.phase = 'ISSUED';
-    assert.deepEqual(recipients(n,'tctClerk'), ['originalPM']);
-    assert.throws(() => W.transfer(n,'tctClerk','tctClerk'));
+    assert.equal(W.roles.net, undefined);
+    const a = W.create(type, 'APPRAISAL');
+    W.receiveGroupSource(a,'leader');
+    W.importSignedDecision(a,'leader',{id:'signed-pdf',kind:'uploaded'});
+    W.transfer(a,'leader','clerk');
+    assert.equal(a.receipt.purpose,'SIGNED_DECISION');
+    assert.equal(W.canIssue(a,'clerk'), true);
+    assert.equal(W.canIssue(a,'tctClerk'), false);
+    assert.deepEqual(recipients(a,'tctClerk'), []);
   });
   test(`${type}: TĐ trả hồ sơ cho Văn thư TCT không cấp quyền ghi nhận ban hành`, () => {
-    const r = W.create(type,'APPRAISAL','TD');
+    const r = W.create(type,'APPRAISAL');
     W.transfer(r,'leader','clerk');
     W.transfer(r,'clerk','tctClerk');
     assert.equal(r.phase,'LEGACY'); assert.equal(r.owner,'tctClerk');
@@ -184,17 +180,47 @@ for (const type of ['Core di động', 'Vô tuyến', 'BRCĐ', 'CSHT']) {
     r.receipt.from = 'reviewPM'; r.report.id = 'report-v2';
     assert.equal(W.canSign(r, 'reviewLead'), false);
   });
-  test(`${type}: luồng thẩm định và NET giữ nguyên điều kiện ký/ban hành`, () => {
-    const a = W.create(type, 'APPRAISAL', 'TD');
-    W.transfer(a, 'leader', 'clerk'); W.transfer(a, 'clerk', 'appraisalLead'); W.transfer(a, 'appraisalLead', 'appraisalPM');
-    assert.equal(W.canEdit(a, 'appraisalPM'), true); assert.equal(W.canEdit(a, 'appraisalCoPM'), false);
-    a.report = {}; a.decision = {}; W.complete(a, 'appraisalPM'); W.transfer(a, 'appraisalPM', 'appraisalLead');
-    W.sign(a, 'appraisalLead'); W.transfer(a, 'appraisalLead', 'clerk');
-    assert.equal(W.canIssue(a, 'clerk'), false);
-    W.transfer(a, 'clerk', 'leader'); W.sign(a, 'leader'); W.transfer(a, 'leader', 'clerk');
-    assert.equal(W.canIssue(a, 'clerk'), true);
-    const n = W.create(type, 'APPRAISAL', 'NET'); assert.throws(() => W.complete(n, 'net'));
-    n.report = { official: true }; n.decision = { official: true }; W.complete(n, 'net'); W.transfer(n, 'net', 'tctClerk');
-    assert.equal(W.canIssue(n, 'tctClerk'), true); assert.equal(W.canSign(n, 'leader'), false);
+  test(`${type}: ký dự thảo hoặc upload QĐ đã ký đều chuyển cùng Văn thư ban hành`, () => {
+    for (const method of ['digital','external']) {
+      const a = W.create(type, 'APPRAISAL');
+      W.receiveGroupSource(a,'leader');
+      W.transfer(a, 'leader', 'clerk'); W.transfer(a, 'clerk', 'appraisalLead'); W.transfer(a, 'appraisalLead', 'appraisalPM');
+      assert.equal(W.canEdit(a, 'appraisalPM'), true); assert.equal(W.canEdit(a, 'appraisalCoPM'), false);
+      a.report = {id:'report-v1'}; a.decision = {id:'draft-v1'};
+      W.complete(a, 'appraisalPM'); W.transfer(a, 'appraisalPM', 'appraisalLead');
+      W.sign(a, 'appraisalLead'); W.transfer(a, 'appraisalLead', 'clerk');
+      assert.equal(W.canIssue(a, 'clerk'), false);
+      W.transfer(a, 'clerk', 'leader');
+      assert.equal(W.canSign(a,'leader'),true); assert.equal(W.canUploadSignedDecision(a,'leader'),true);
+      assert.deepEqual(recipients(a,'leader'), []);
+      if (method === 'digital') W.sign(a, 'leader');
+      else W.importSignedDecision(a,'leader',{id:'signed-pdf-v1',kind:'uploaded'});
+      assert.equal(a.decision.signatureSource,method); assert.equal(a.report.id,'report-v1');
+      assert.equal(W.canSign(a,'leader'),false); assert.equal(W.canUploadSignedDecision(a,'leader'),false);
+      W.transfer(a, 'leader', 'clerk');
+      assert.equal(a.phase,'CLERK_SIGNED'); assert.equal(a.receipt.from,'leader');
+      assert.equal(a.receipt.decisionId,a.decision.id); assert.equal(a.receipt.purpose,'SIGNED_DECISION');
+      assert.equal(W.canIssue(a, 'clerk'), true);
+      a.decision.id='replaced-file'; assert.equal(W.canIssue(a,'clerk'),false);
+    }
+  });
+  test(`${type}: upload QĐ đã ký khi nhận hồ sơ nguồn không cần nhánh NET hoặc báo cáo giả`, () => {
+    const a = W.create(type,'APPRAISAL');
+    assert.equal(W.canUploadSignedDecision(a,'leader'),false);
+    W.receiveGroupSource(a,'clerk');
+    assert.equal(W.canUploadSignedDecision(a,'leader'),false);
+    assert.throws(()=>W.importSignedDecision(a,'leader',{id:'signed',kind:'uploaded'}));
+    W.transfer(a,'clerk','leader');
+    assert.equal(W.canUploadSignedDecision(a,'leader'),true);
+    assert.equal(W.canUploadSignedDecision(a,'clerk'),false);
+    assert.throws(()=>W.importSignedDecision(a,'leader',{id:'generated',kind:'generated'}));
+    W.importSignedDecision(a,'leader',{id:'signed',kind:'uploaded'});
+    assert.equal(a.report,null); assert.equal(W.canViewAppraisalDocuments(a,'leader'),true);
+    assert.equal(W.canSign(a,'leader'),false);
+    W.transfer(a,'leader','clerk'); assert.equal(W.canIssue(a,'clerk'),true);
+    a.receipt.from='appraisalLead'; assert.equal(W.canIssue(a,'clerk'),false);
+    a.receipt.from='leader'; a.phase='ISSUED';
+    assert.deepEqual(recipients(a,'clerk'),['originalPM','tctClerk']);
+    W.transfer(a,'clerk','originalPM'); assert.equal(a.phase,'DONE');
   });
 }
