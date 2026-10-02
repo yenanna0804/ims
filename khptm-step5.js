@@ -242,7 +242,34 @@
   function viewDocumentType(kind) {
     const r = record();
     if (!['submission','report'].includes(kind)) return;
-    if (isEditable(r)) captureFields();
+    if (isEditable(r)) {
+      captureFields();
+      r.docType = kind;
+      const snapshot = {
+        kind,
+        basisId: r.basisId,
+        type: r.type,
+        year: r.year,
+        fields: structuredClone(r.fields)
+      };
+      if (!r.generated || r.generated.kind !== kind) {
+        r.generatedVersion += 1;
+        r.generated = {
+          id: r.id + '-DOC-' + r.generatedVersion,
+          kind,
+          name: documentName(r, kind),
+          time: now(),
+          actor: ROLE_NAMES.pm,
+          signed: false,
+          snapshot
+        };
+        r.leaderSigned = false;
+      } else {
+        r.generated.snapshot = snapshot;
+      }
+      openPreview(documentTitle(kind) + ' - Đề xuất PAKT, CN và quy mô', generatedHtml(r, snapshot));
+      return;
+    }
     const snapshot = r.generated && r.generated.kind === kind
       ? r.generated.snapshot
       : {
@@ -834,8 +861,7 @@
         field('Tham số tính toán','calculationParameters',r.fields.calculationParameters,true) +
         field('Kết quả tính toán quy mô','calculationResult',r.fields.calculationResult,true) +
         field('Danh mục/chủng loại vật tư thiết bị dự kiến','equipmentList',r.fields.equipmentList,true) +
-      '</div></div></div>' +
-      '<div class="section"><h3>Văn bản đầu ra</h3><div class="body"><div class="kh5-output-row"><div><label>Loại văn bản</label><select id="kh5DocType" onchange="kh5.setDocType(this.value)" ' + (isEditable(r)?'':'disabled') + '><option value="submission"'+(r.docType==='submission'?' selected':'')+'>Tạo tờ trình</option><option value="report"'+(r.docType==='report'?' selected':'')+'>Tạo báo cáo</option></select></div><button onclick="kh5.generate()" ' + (isEditable(r)?'':'disabled') + '>Sinh văn bản từ template</button>' + (r.generated?'<button class="primary" onclick="kh5.viewGenerated()">Xem '+(r.generated.kind==='report'?'báo cáo':'tờ trình')+'</button>':'') + '</div></div></div>';
+      '</div></div></div>';
   }
 
   function renderProvider(r) {
