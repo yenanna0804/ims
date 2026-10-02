@@ -139,9 +139,9 @@
 (function () {
   'use strict';
   if (typeof window === 'undefined') return;
-  const W = KHStep5, records = new Map(); let currentId = '', creationBasis = '', modal = null, signSession = null;
+  const W = KHStep5, records = new Map(); let currentId = '', creationBasis = '', creationDraft = null, modal = null, signSession = null;
   const now = () => new Date().toLocaleString('vi-VN', { hour12: false });
-  const current = () => records.get(currentId), own = r => W.owns(r, r.viewer), edit = r => W.canEdit(r, r.viewer);
+  const current = () => records.get(currentId) || creationDraft, own = r => W.owns(r, r.viewer), edit = r => W.canEdit(r, r.viewer);
   const button = (label, action, enabled = true, cls = '') => '<button class="' + cls + '" onclick="' + action + '"' + (enabled ? '' : ' disabled') + '>' + label + '</button>';
   const section = (title, body) => '<div class="section"><h3>' + title + '</h3><div class="body">' + body + '</div></div>';
   const note = text => '<div class="mini" style="padding:10px">' + esc(text) + '</div>';
@@ -154,7 +154,7 @@
   const nav = document.createElement('div'); nav.className = 'subitem'; nav.textContent = 'Lựa chọn PAKT, CN, tính toán quy mô'; nav.onclick = event => { event.stopPropagation(); list(); };
   document.querySelector('#nav-khptm .submenu').appendChild(nav);
   function list() {
-    showPage('kh5Page'); currentId = '';
+    showPage('kh5Page'); currentId = ''; creationDraft = null;
     page.innerHTML = '<div class="crumb">QUẢN LÝ KHPTM &gt; Lựa chọn PAKT, CN, tính toán quy mô</div><div class="toolbar">' + button('Tạo đề xuất', 'kh5.createScreen()', true, 'primary') + '</div>' + section('Danh sách đề xuất lựa chọn PAKT, CN và quy mô',
       '<div style="overflow:auto"><table><thead><tr><th>STT</th><th>Tên đề xuất</th><th>Loại thiết bị</th><th>Căn cứ KHPTM</th><th>Người xử lý chính</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>' + ([...records.values()].map((r, i) => '<tr><td>' + (i + 1) + '</td><td>' + esc(r.data.name) + '</td><td>' + esc(r.basis.type) + '</td><td>' + esc(r.basis.title) + '</td><td>' + esc(W.roles[r.owner]) + '</td><td>' + state(r) + '</td><td>' + button('Xem', "kh5.open('" + r.id + "')") + '</td></tr>').join('') || '<tr><td colspan="7">Chưa có đề xuất.</td></tr>') + '</tbody></table></div>');
   }
@@ -164,13 +164,21 @@
     return '<label for="kh5Basis">Căn cứ: KHPTM đã được phê duyệt <span class="red">*</span></label><select id="kh5Basis" onchange="kh5.chooseBasis(this.value)"><option value="">-- Chọn KHPTM đã phê duyệt --</option>' + plans.map(p => '<option value="' + esc(p.id) + '"' + (p.id === selected ? ' selected' : '') + '>' + esc(p.title + ' · QĐ ' + p.number + ' · ' + formatDateVN(p.date)) + '</option>').join('') + '</select><div id="kh5BasisAction" style="margin-top:8px">' + (selected ? button('Xem QĐ phê duyệt KHPTM', 'kh5.previewBasis()') : '') + '</div>' + (plans.length ? '' : note('Chưa có KHPTM đã ký và ban hành. Hoàn thành phê duyệt KHPTM ở bước trước để chọn căn cứ.') + button('Mở Xây dựng, trình KHPTM', 'openKHPTMBuildModule()'));
   }
   function createScreen(basisId) {
-    creationBasis = kh4.approvedPlans().some(p => p.id === basisId) ? basisId : ''; currentId = ''; showPage('kh5Page');
-    page.innerHTML = '<div class="crumb">QUẢN LÝ KHPTM &gt; Tạo đề xuất lựa chọn PAKT, CN và quy mô</div><div class="toolbar">' + button('Quay lại', 'kh5.list()') + button('Tạo đề xuất', 'kh5.create()', true, 'primary') + '</div>' + section('Thông tin đề xuất', basisPicker(creationBasis));
+    const basis = kh4.approvedPlans().find(p => p.id === basisId);
+    creationBasis = basis?.id || ''; currentId = ''; showPage('kh5Page');
+    creationDraft = { data: Object.fromEntries(W.fields.map(([key]) => [key, ''])), rows: [W.emptyRow()], owner: 'pm', viewer: 'pm', receipt: { to: 'pm', purpose: 'PREPARE' } };
+    Object.assign(creationDraft.data, { unit: 'Ban KT', date: new Date().toISOString().slice(0, 10), name: basis ? 'Đề xuất lựa chọn PAKT, CN và quy mô ' + basis.type + ' năm ' + basis.year : 'Đề xuất lựa chọn PAKT, CN và quy mô' });
+    page.innerHTML = '<div class="crumb">QUẢN LÝ KHPTM &gt; Tạo đề xuất lựa chọn PAKT, CN và quy mô</div><div class="titlebar"><h1>Tạo đề xuất lựa chọn PAKT, CN và quy mô</h1></div><div class="toolbar">' + button('Quay lại', 'kh5.list()') + button('Lưu đề xuất', 'kh5.create()', true, 'primary') + '</div>' + section('Căn cứ lập đề xuất', basisPicker(creationBasis)) + form(creationDraft);
   }
-  function chooseBasis(id) { creationBasis = id; document.getElementById('kh5BasisAction').innerHTML = id ? button('Xem QĐ phê duyệt KHPTM', 'kh5.previewBasis()') : ''; }
+  function chooseBasis(id) {
+    creationBasis = id; document.getElementById('kh5BasisAction').innerHTML = id ? button('Xem QĐ phê duyệt KHPTM', 'kh5.previewBasis()') : '';
+    const basis = kh4.approvedPlans().find(p => p.id === id), name = document.getElementById('kh5Field_name');
+    if (basis && name && name.value.startsWith('Đề xuất lựa chọn PAKT, CN và quy mô')) name.value = 'Đề xuất lựa chọn PAKT, CN và quy mô ' + basis.type + ' năm ' + basis.year;
+  }
   function create() {
     const basis = kh4.approvedPlans().find(p => p.id === creationBasis);
-    try { const r = W.create(basis, 'PAKT-' + Date.now() + '-' + records.size); records.set(r.id, r); currentId = r.id; log(r, 'Tạo đề xuất căn cứ ' + basis.title + ' · QĐ ' + basis.number); render(); }
+    try { const input = readForm(creationDraft), r = W.create(basis, 'PAKT-' + Date.now() + '-' + records.size); W.save(r, 'pm', input.data, input.rows);
+      records.set(r.id, r); currentId = r.id; creationDraft = null; log(r, 'Tạo đề xuất căn cứ ' + basis.title + ' · QĐ ' + basis.number); render(); }
     catch (error) { toast(error.message); }
   }
   function open(id) { if (!records.has(id)) return; currentId = id; records.get(id).viewer = records.get(id).owner; showPage('kh5Page'); render(); }
@@ -234,7 +242,7 @@
     document.getElementById('khptmPreviewPaper').innerHTML = url ? '<iframe title="' + esc(title) + '" src="' + url + '" style="width:100%;height:70vh;border:0"></iframe>' : html;
     document.getElementById('khptmPreviewModal').classList.add('show');
   }
-  function previewBasis() { const basis = current()?.basis || kh4.approvedPlans().find(p => p.id === creationBasis); if (basis) preview('QĐ phê duyệt ' + basis.title, basis.decision.html, basis.decision.kind === 'uploaded' ? basis.decision.url : null); }
+  function previewBasis() { const basis = records.get(currentId)?.basis || kh4.approvedPlans().find(p => p.id === creationBasis); if (basis) preview('QĐ phê duyệt ' + basis.title, basis.decision.html, basis.decision.kind === 'uploaded' ? basis.decision.url : null); }
   function previewSubmission() {
     const r = current(); if (!r) return;
     if (edit(r)) { const input = readForm(r); preview('Xem Tờ trình', paper({ ...r, ...input, submission: null }, 'submission')); }
