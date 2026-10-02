@@ -1015,7 +1015,7 @@ const routeRecipients=[
  {id:'ldtct',name:'Nguyễn Việt Tiến',title:'LĐTCT',unit:'VNPT Net'},
  {id:'clerk',name:'Phùng Thị Liên',title:'Văn thư',unit:'VNPT Net'}
 ];
-function routeKeyFromName(s){s=s||'';if(s.includes('Trần Văn B'))return'pm';if(s.includes('Lê Văn D'))return'ktm';if(s.includes('Nguyễn Văn Q'))return'leader';if(s.includes('Nguyễn Việt Tiến'))return'ldtct';if(s.includes('Phùng Thị Liên')||s.includes('Văn thư'))return'clerk';return''}
+function routeKeyFromName(s){s=s||'';if(s.includes('PM Ban KT'))return'kh5pm';if(s.includes('LĐ Ban KT'))return'kh5leader';if(s.includes('Trần Văn B'))return'pm';if(s.includes('Lê Văn D'))return'ktm';if(s.includes('Nguyễn Văn Q'))return'leader';if(s.includes('Nguyễn Việt Tiến'))return'ldtct';if(s.includes('Phùng Thị Liên')||s.includes('Văn thư'))return'clerk';return''}
 function openTransfer(action){
  pendingTransferAction=action;
  currentTransferCfg={assign:{title:'Giao nhiệm vụ cho PM',main:'Trần Văn B - PM dự án',co:['PM KTM - Lê Văn D'],send:['LĐ Ban KHĐT']},submitLeader:{title:'Trình LĐ Đơn vị được GNV',main:'Nguyễn Văn Q - LĐ Ban QLDA',co:[],send:['PM KTM - Lê Văn D']},submitLDTCT:{title:'Trình LĐTCT',main:'Nguyễn Việt Tiến - Tổng Giám đốc',co:[],send:['Văn thư']}}[action]||{title:'Chuyển xử lý',main:'Nguyễn Văn Q - LĐ Ban QLDA',co:[],send:[]};
