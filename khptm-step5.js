@@ -139,7 +139,7 @@
 (function () {
   'use strict';
   if (typeof window === 'undefined') return;
-  const W = KHStep5, records = new Map(); let currentId = '', creationBasis = '', creationDraft = null, modal = null, signSession = null;
+  const W = KHStep5, records = new Map(); let currentId = '', creationBasis = '', creationDraft = null, modal = null, signSession = null, signUI = null;
   const now = () => new Date().toLocaleString('vi-VN', { hour12: false });
   const current = () => records.get(currentId) || creationDraft, own = r => W.owns(r, r.viewer), edit = r => W.canEdit(r, r.viewer);
   const button = (label, action, enabled = true, cls = '') => '<button class="' + cls + '" onclick="' + action + '"' + (enabled ? '' : ' disabled') + '>' + label + '</button>';
@@ -305,7 +305,9 @@
   function refreshSubmission(r) { const old = r.submission; if (!old) return; const html = paper(r, 'submission'), blob = KHStep5Office.docx(paragraphs(r, 'submission')); URL.revokeObjectURL(old.url); old.blob = blob; old.url = URL.createObjectURL(blob); old.html = html; }
   function sign() {
     const r = current(); if (!W.canSign(r, r.viewer)) return toast('Không có nhiệm vụ ký Tờ trình');
-    signSession = { id: r.id, actor: r.viewer, revision: r.revision, receipt: r.receipt }; openDigitalSignModal();
+    signSession = { id: r.id, actor: r.viewer, revision: r.revision, receipt: r.receipt };
+    const paperHost = document.querySelector('#digitalSignModal .route-sign-paper'), toolbar = document.querySelector('#digitalSignModal .route-preview-toolbar');
+    signUI = { paper: paperHost.innerHTML, toolbar: toolbar.innerHTML }; paperHost.innerHTML = r.submission.html + '<div class="route-signature-stamp">VNPT<br><span style="font-size:13px">Ký số tại đây</span></div>'; toolbar.textContent = r.submission.name; openDigitalSignModal();
   }
   const oldFinishSign = finishDigitalSign;
   finishDigitalSign = function () {
@@ -314,7 +316,7 @@
     try { if (!r || r.viewer !== snap.actor || r.revision !== snap.revision || r.receipt !== snap.receipt) throw Error('Nhiệm vụ đã thay đổi; mở lại ký số'); W.sign(r, snap.actor); refreshSubmission(r); log(r, 'Ký số Tờ trình (demo)'); closeDigitalSignModal(); render(); toast('Đã ký Tờ trình (demo)'); } catch (e) { closeDigitalSignModal(); toast(e.message); }
   };
   const oldCloseSign = closeDigitalSignModal;
-  closeDigitalSignModal = function () { signSession = null; return oldCloseSign.apply(this, arguments); };
+  closeDigitalSignModal = function () { signSession = null; if (signUI) { document.querySelector('#digitalSignModal .route-sign-paper').innerHTML = signUI.paper; document.querySelector('#digitalSignModal .route-preview-toolbar').innerHTML = signUI.toolbar; signUI = null; } return oldCloseSign.apply(this, arguments); };
   function takeNumber() { const r = current(); if (W.canIssue(r, r.viewer)) document.getElementById('kh5Issue_number').value = String(800 + [...records.values()].filter(x => x.submission?.issued).length + 1); }
   function issue() { const r = current(); try { const metadata = Object.fromEntries(['number', 'date', 'suffix', 'eoffice'].map(k => [k, document.getElementById('kh5Issue_' + k)?.value.trim() || ''])); W.issue(r, r.viewer, metadata); log(r, 'Ban hành Tờ trình số ' + r.issue.number); refreshSubmission(r); render(); } catch (e) { toast(e.message); } }
   function transfer() {
