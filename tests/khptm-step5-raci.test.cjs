@@ -93,12 +93,19 @@ test('Không tráo tài liệu / PM giữa yêu cầu của hai đơn vị',()=>
  assert.throws(()=>W.transfer(r,'pmKTM','leadKTM',route(r,'Trình duyệt')));assert.throws(()=>W.transfer(r,'pmKTM','leadKTM',route(r,'Trình duyệt',['KTM-data','TTP-data'])));
  W.transfer(r,'pmKTM','leadKTM',route(r,'Trình duyệt',['KTM-data']));assert.equal(W.canApproveData(r,'leadKTM'),true);
 });
-test('Lưu nháp chưa đủ nghiệp vụ vẫn xin được số liệu; chưa sinh được bộ đầu ra',()=>{
- const r=make('Vô tuyến');W.saveDraft(r,'pm',{...r.data,author:''},[W.emptyRow()]);assert.throws(()=>W.installPair(r,'pm',[{docType:'report',revision:r.revision},{docType:'catalog',revision:r.revision}]));
+test('Biểu mẫu chờ khảo sát vẫn sinh được tài liệu mẫu và xin số liệu',()=>{
+ const r=make('Vô tuyến');W.saveDraft(r,'pm',{...r.data,author:''},[W.emptyRow()]);W.installPair(r,'pm',[{docType:'report',revision:r.revision},{docType:'catalog',revision:r.revision}]);
  W.transfer(r,'pm','leadKTM',route(r));assert.equal(r.requests.length,1);assert.equal(r.owner,'pm');
 });
 test('Yêu cầu giữ phiên bản tài liệu thực tế khi PM sửa đề xuất song song',()=>{
  const r=make('Core di động');prepare(r);const {request:q}=W.transfer(r,'pm','leadKTM',route(r,'Xin số liệu',['report','catalog']));
  W.saveDraft(r,'pm',{...r.data,result:'03 mô-đun'},r.rows);assert.equal(r.files.length,0);assert.equal(q.documents.length,2);assert.equal(q.documents[0].html,'Phiên bản 2');
  W.transfer(r,'leadKTM','pmKTM',route(r,'Phân công',['report','catalog']));assert.equal(W.canProvide(r,'pmKTM'),true);
+});
+
+
+test('Số liệu trả về không thay nguồn nhiệm vụ lập của PM; nguồn phân công sai bị chặn',()=>{
+ const r=make('BRCĐ'), original=r.receipt, {request:q}=W.transfer(r,'pm','leadKTM',route(r));
+ q.receipt.from='leadIT';assert.equal(W.owns(r,'leadKTM'),false);assert.deepEqual(W.allowed(r,'leadKTM'),[]);q.receipt.from='pm';
+ completeData(r,q);assert.equal(r.receipt,original);assert.equal(r.receipt.from,null);assert.equal(W.canEdit(r,'pm'),true);assert.equal(r.latestDataReceipt.from,'leadKTM');
 });
