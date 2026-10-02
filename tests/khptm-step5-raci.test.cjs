@@ -3,6 +3,42 @@ const assert=require('node:assert/strict');
 const W=require('../khptm-step5.js');
 const make=type=>W.create({id:'KH-'+type,type,year:2027,title:'KHPTM '+type,decision:{signed:true,issued:true,html:'Quyết định đã ban hành'}},'PAKT-'+type);
 const route=(r,note='Cung cấp số liệu hiện trạng',files=[r.basis.id+'-basis'])=>({note,files,co:[],view:['khdt']});
+const requestDoc=(r,unit='Ban KTM')=>W.storeInfoDocument(r,'pm','request','2.2',{unit,content:'Cung cấp số liệu hiện trạng',deadline:'2026-10-15'},{name:'Yeu_cau.docx'});
+for(const type of W.types){
+ test(type+': văn bản yêu cầu và cung cấp theo đúng đơn vị, nhiệm vụ, phiên bản đã nhận',()=>{
+  const r=make(type),doc=requestDoc(r),files=[r.basis.id+'-basis',doc.id];
+  assert.throws(()=>W.storeInfoDocument(r,'pmKTM','supply','2.2',{issuer:'Ban KTM',recipient1:'Ban KT',period:'2027'},{}));
+  assert.throws(()=>W.transfer(r,'pm','leadIT',route(r,'Yêu cầu sai đơn vị',files)));
+  const {request:q}=W.transfer(r,'pm','leadKTM',route(r,'Yêu cầu số liệu',files));
+  assert.equal(q.requestDocumentId,doc.id);assert.equal(q.requestDocumentVersion,1);
+  const next=requestDoc(r);doc.document.content='Nội dung đã sửa sau khi chuyển';
+  assert.equal(next.version,2);assert.equal(q.documents.find(f=>f.id===doc.id).document.content,'Cung cấp số liệu hiện trạng');
+  W.transfer(r,'leadKTM','pmKTM',route(r,'Giao cung cấp số liệu',q.receipt.files));
+  const response=W.storeInfoDocument(r,'pmKTM','supply','2.2',{issuer:'Ban KTM',recipient1:'Ban KT',period:'2027',lines:[{direction:'A – B',distance:'12'}]},{name:'Cung_cap.docx'});
+  assert.equal(response.requestDocumentId,doc.id);assert.equal(response.requestDocumentVersion,1);
+  W.saveResponse(r,'pmKTM','Gửi số liệu kèm văn bản',[response.id]);
+  response.requestDocumentVersion=2;assert.throws(()=>W.saveResponse(r,'pmKTM','Gửi lại',[response.id]));response.requestDocumentVersion=1;
+  W.transfer(r,'pmKTM','leadKTM',route(r,'Trình duyệt',[...q.documents.map(f=>f.id),response.id]));
+  assert.throws(()=>W.storeInfoDocument(r,'pmKTM','supply','2.2',response.document,{}));
+  W.approveData(r,'leadKTM');W.transfer(r,'leadKTM','pm',route(r,'Gửi số liệu được duyệt',[...q.documents.map(f=>f.id),response.id]));
+  assert.equal(q.status,'RETURNED');assert.ok(q.response.files.includes(response.id));
+ });
+}
+test('Văn bản cung cấp của hai lần giao cùng đơn vị giữ ID và phiên bản riêng',()=>{
+ const r=make('Core di động');let first;
+ for(let i=0;i<2;i++){
+  const doc=requestDoc(r),{request:q}=W.transfer(r,'pm','leadKTM',route(r,'Yêu cầu lần '+i,[doc.id]));
+  W.transfer(r,'leadKTM','pmKTM',route(r,'Phân công',q.receipt.files));
+  const f=W.storeInfoDocument(r,'pmKTM','supply','2.2',{issuer:'Ban KTM',recipient1:'Ban KT',period:'2027'},{});
+  if(first){assert.notEqual(f.id,first.id);assert.throws(()=>W.saveResponse(r,'pmKTM','Không dùng phản hồi cũ',[first.id]));}else first=f;
+  W.saveResponse(r,'pmKTM','Số liệu lần '+i,[f.id]);W.transfer(r,'pmKTM','leadKTM',route(r,'Trình',[doc.id,f.id]));W.approveData(r,'leadKTM');W.transfer(r,'leadKTM','pm',route(r,'Gửi',[doc.id,f.id]));
+ }
+});
+test('Nháp thiếu căn cứ và người xem không được tạo văn bản yêu cầu',()=>{
+ assert.throws(()=>requestDoc(W.draft('NO-BASIS')));
+ const r=make('BRCĐ');assert.throws(()=>W.storeInfoDocument(r,'khdt','request','2.2',{unit:'IT',content:'Số liệu',deadline:'2026-10-15'},{}));
+ assert.throws(()=>requestDoc(r,'Đơn vị ngoài RACI'));
+});
 function prepare(r){
  W.save(r,'pm',{...r.data,author:'Nguyễn Văn A',selected:'Mở rộng hệ thống',method:'Nhu cầu trừ năng lực hiện có',result:'02 mô-đun'},[{...W.emptyRow(),device:'Mô-đun',unit:'Bộ',quantity:'2'}]);
  W.installPair(r,'pm',['report','catalog'].map(docType=>({id:docType,docType,revision:r.revision,generated:true,html:'Phiên bản '+r.revision})));

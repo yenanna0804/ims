@@ -46,7 +46,7 @@
     const receipt = record().receipt;
     return receipt && receipt.response ? structuredClone(receipt.response.document) : defaults(kind,code);
   }
-  function canEditSession() { return editing && editing.key === key() && permission(editing.kind) && (editing.kind !== 'supply' || editing.receipt === record().receipt); }
+  function canEditSession() { return editing && (editing.context ? editing.context.canEdit() : editing.key === key() && permission(editing.kind) && (editing.kind !== 'supply' || editing.receipt === record().receipt)); }
   function fieldHTML(f, data) {
     const [name,label,type] = f, id = 'khInfo_'+name;
     const value = data[name] || '';
@@ -67,8 +67,9 @@
     const modal = document.getElementById('khptm2InfoModal');
     let html = '';
     if (kind === 'request') html += '<div class="toolbar"><label for="khInfoCode">Biểu mẫu</label><select id="khInfoCode" style="width:auto" onchange="khInfo.changeCode(this.value)"><option value="2.1" '+(code==='2.1'?'selected':'')+'>SOP1-TB-01A — Thông tin phục vụ XD KHPTM</option><option value="2.2" '+(code==='2.2'?'selected':'')+'>SOP1-TB-01B — Số liệu hiện trạng</option></select></div>';
-    else html += '<div class="kh2-doc-note" style="margin-bottom:12px"><b>SOP1-CQ-1 — Văn bản cung cấp thông tin phục vụ XD KH PTM cáp quang</b><br>Người chuyển: '+escape(record().receipt.sender)+' · Đơn vị nhận: '+escape(record().receipt.unit)+' · Yêu cầu: '+escape(code)+'</div>';
-    html += '<div class="kh2-modal-grid">'+fields(kind,code).map(f => fieldHTML(f,data)).join('')+'</div>';
+    else { const received = editing?.context?.receipt || record().receipt; html += '<div class="kh2-doc-note" style="margin-bottom:12px"><b>SOP1-CQ-1 — Văn bản cung cấp thông tin phục vụ XD KH PTM cáp quang</b><br>Người chuyển: '+escape(received.sender)+' · Đơn vị nhận: '+escape(received.unit)+' · Yêu cầu: '+escape(code)+'</div>'; }
+    html += '<div id="khInfoValidation" class="khptm-note" role="alert" hidden></div>';
+    html += '<div class="kh2-modal-grid">'+fields(kind,code).map(f => f[0]==='unit' && editing?.context?.units ? '<div class="full"><label for="khInfo_unit">'+f[1]+'</label><select id="khInfo_unit" data-info-field="unit">'+editing.context.units.map(unit=>'<option'+(unit===data.unit?' selected':'')+'>'+escape(unit)+'</option>').join('')+'</select></div>' : fieldHTML(f,data)).join('')+'</div>';
     if (kind === 'supply') {
       html += '<div class="section" style="margin-top:12px"><h3>Phụ lục 1 — Đề xuất triển khai các tuyến cáp quang</h3><div style="overflow:auto"><table><thead><tr><th>STT</th><th>Hướng tuyến</th><th>Cự ly(Km)</th><th>Số sợi(FO)</th><th>Mục đích, lý do thay thế</th></tr></thead><tbody>';
       for (let i=0;i<11;i++) html += '<tr><td>'+(i<10?i+1:'')+'</td>'+['direction','distance','fibers','reason'].map(col => '<td><input aria-label="'+({direction:'Hướng tuyến',distance:'Cự ly',fibers:'Số sợi',reason:'Mục đích, lý do thay thế'})[col]+' dòng '+(i+1)+'" data-info-line="'+i+'" data-info-col="'+col+'" '+(['distance','fibers'].includes(col)?'type="number" min="0" step="'+(col==='fibers'?'1':'any')+'"':'')+' value="'+escape((data.lines && data.lines[i] || {})[col] || '')+'"></td>').join('')+'</tr>';
@@ -87,9 +88,15 @@
     editing={kind,code,key:key(),data,receipt:record().receipt,drafts:{}};
     khptm2CurrentRequest=code;showForm(kind,code,data);
   }
+  function openFor(context) {
+    if (!context.canEdit()) return toast('Bạn chưa được giao nhiệm vụ tạo văn bản này');
+    const code = ['2.1','2.2'].includes(context.code) ? context.code : '2.2';
+    editing = {kind:context.kind,code,key:context.key,data:structuredClone(context.data),context,drafts:{}};
+    showForm(editing.kind,code,editing.data);
+  }
   function changeCode(code) {
     if (!canEditSession()) return;
-    editing.drafts[editing.code]=capture();editing.code=code;editing.data=editing.drafts[code] || draft('request',code);khptm2CurrentRequest=code;
+    editing.drafts[editing.code]=capture();editing.code=code;editing.data=editing.drafts[code] || (editing.context ? structuredClone(editing.context.data) : draft('request',code));if(!editing.context)khptm2CurrentRequest=code;
     showForm('request',code,editing.data);
   }
   function value(data,name) { return data[name] ? escape(data[name]).replace(/\n/g,'<br>') : '<span class="ph">['+escape(({day:'Ngày',month:'Tháng',year:'Năm'}[name] || (common.concat(requestFields,supplyFields).find(f => f[0] === name) || [name,name])[1]))+']</span>'; }
@@ -121,11 +128,14 @@
     document.getElementById('khptmPreviewModal').classList.add('show');
   }
   function previewDraft() { if (!canEditSession()) return toast('Nhiệm vụ xử lý đã thay đổi');preview(editing.kind,capture(),editing.code); }
+  function invalid(message) { const host=document.getElementById('khInfoValidation');if(host){host.hidden=false;host.textContent=message;host.scrollIntoView({block:'nearest'});}toast(message); }
   function save() {
-    if (!canEditSession()) return toast('Bạn chưa được giao nhiệm vụ tạo văn bản này');
-    const data=capture(), kind=editing.kind, code=editing.code, r=record();
-    if (kind==='request' && (!data.unit || !data.content || !data.deadline)) return toast('Nhập đơn vị nhận, nội dung yêu cầu và thời hạn cung cấp');
-    if (kind==='supply' && (!data.issuer || !data.recipient1 || !data.period)) return toast('Nhập đơn vị ban hành, đơn vị nhận và giai đoạn đề xuất');
+    if (!canEditSession()) return invalid('Bạn chưa được giao nhiệm vụ tạo văn bản này');
+    const data=capture(), kind=editing.kind, code=editing.code;
+    if (kind==='request' && (!data.unit || !data.content || !data.deadline)) return invalid('Nhập đơn vị nhận, nội dung yêu cầu và thời hạn cung cấp');
+    if (kind==='supply' && (!data.issuer || !data.recipient1 || !data.period)) return invalid('Nhập đơn vị ban hành, đơn vị nhận và giai đoạn đề xuất');
+    if(editing.context){try{return editing.context.onSave(data,kind,code);}catch(error){return invalid(error.message);}}
+    const r=record();
     const doc={document:data,code,createdAt:new Date().toLocaleString('vi-VN',{hour12:false}),author:kind==='request'?khptm2Role:khptm2ProviderUnit};
     if (kind==='request') {const old=r.requests[code];doc.version=(old && old.version || 0)+1;doc.response=old && old.response;r.requests[code]=doc;Object.assign(khptm2Requests[code],data,{status:'Đã lập yêu cầu'});}
     else { doc.version=(r.receipt.response && r.receipt.response.version || 0)+1;doc.requestVersion=r.receipt.requestVersion;doc.sender=r.receipt.sender;r.receipt.response=doc; }
@@ -282,6 +292,6 @@
   };
   const baseReset=resetKHPTMBuildFlow;
   resetKHPTMBuildFlow=function(){const r=record();Object.values(r.drafts||{}).forEach(d=>{if(d.upload)URL.revokeObjectURL(d.upload.url);});records.delete(key());editing=null;composerSession=null;return baseReset.apply(this,arguments);};
-  const style=document.createElement('style');style.textContent='#khptm2Extended .kh-info-create{float:right;margin:5px 3px 7px 12px}#khptm2Extended .pm-ext-tabs{clear:both}#khptmPreviewModal{z-index:95}.kh-info-paper{font-family:"Times New Roman",serif;font-size:16px;line-height:1.45;color:#000}.kh-info-paper p{margin:9px 0;text-align:justify}.kh-info-paper table td{color:#000}.kh-info-letterhead td{border:0;width:50%;vertical-align:top;padding:5px 12px;text-align:center}.kh-info-appendix th,.kh-info-appendix td{border:1px solid #000;color:#000;background:white;font-family:"Times New Roman",serif;font-size:14px}.kh-info-appendix td{height:26px}#khptm2InfoModal .modalhead{position:sticky;top:0;z-index:1}#khptm2InfoModal .footer-actions{position:sticky;bottom:-14px;background:white;padding:12px 0;border-top:1px solid #d5e0ea}#khptm2InfoModal label{font-size:14px}@media(max-width:650px){#khptm2Extended .kh-info-create{float:none;display:block;margin-left:auto}.kh-info-letterhead td{padding:3px;font-size:13px}}';document.head.appendChild(style);
-  window.khInfo={open,changeCode,previewDraft,save,savedPreview,pendingPreview,removePending,renderExchangeInto};
+  const style=document.createElement('style');style.textContent='#khptm2Extended .kh-info-create,#kh5Extended .kh-info-create{float:right;margin:5px 3px 7px 12px}#khptm2Extended .pm-ext-tabs,#kh5Extended .pm-ext-tabs{clear:both}#khptmPreviewModal{z-index:95}.kh-info-paper{font-family:"Times New Roman",serif;font-size:16px;line-height:1.45;color:#000}.kh-info-paper p{margin:9px 0;text-align:justify}.kh-info-paper table td{color:#000}.kh-info-letterhead td{border:0;width:50%;vertical-align:top;padding:5px 12px;text-align:center}.kh-info-appendix th,.kh-info-appendix td{border:1px solid #000;color:#000;background:white;font-family:"Times New Roman",serif;font-size:14px}.kh-info-appendix td{height:26px}#khptm2InfoModal .modalhead{position:sticky;top:0;z-index:1}#khptm2InfoModal .footer-actions{position:sticky;bottom:-14px;background:white;padding:12px 0;border-top:1px solid #d5e0ea}#khptm2InfoModal label{font-size:14px}@media(max-width:650px){#khptm2Extended .kh-info-create,#kh5Extended .kh-info-create{float:none;display:block;margin-left:auto}.kh-info-letterhead td{padding:3px;font-size:13px}}';document.head.appendChild(style);
+  window.khInfo={open,openFor,changeCode,previewDraft,save,savedPreview,pendingPreview,removePending,renderExchangeInto,requestHTML,supplyHTML,previewAttachment};
 }());
