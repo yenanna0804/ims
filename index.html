@@ -1030,7 +1030,7 @@ function selectedRouteRecipients(){const mainId=document.querySelector('input[na
 function updateRouteSelectedList(){const host=document.getElementById('routeSelectedList');if(!host)return;const s=selectedRouteRecipients();let html='';if(s.main)html+=`<div class="route-selected-item"><b>Xử lý chính:</b> ${s.main.name}<div class="mini">${s.main.title} · ${s.main.unit}</div></div>`;s.co.forEach(r=>html+=`<div class="route-selected-item"><b>Phối hợp:</b> ${r.name}<div class="mini">${r.title} · ${r.unit}</div></div>`);s.view.forEach(r=>html+=`<div class="route-selected-item"><b>Xem để biết:</b> ${r.name}<div class="mini">${r.title} · ${r.unit}</div></div>`);host.innerHTML=html||'<div class="mini">Chưa chọn người nhận</div>'}
 function generateTransferFile(type){toast(type==='sign'?'Đã sinh file trình ký từ Template':'Đã sinh file phát hành từ Template')}
 function toggleTransferFile(id){const el=document.getElementById(id);if(el){el.style.display='none';toast('Đã xóa file khỏi danh sách chuyển')}}
-function openTransferPreview(title){if(pendingTransferAction==='khbuildClerkToTD')return openKHPTM2Preview(title.indexOf('Tờ trình')===0?'submission':'outgoing');document.getElementById('transferPreviewTitle').textContent=title;document.getElementById('transferPreviewModal').classList.add('show')}
+function openTransferPreview(title){if(String(pendingTransferAction||'').startsWith('kh5')&&window.kh5&&typeof window.kh5.openSharedTransferPreview==='function')return window.kh5.openSharedTransferPreview(title);if(pendingTransferAction==='khbuildClerkToTD')return openKHPTM2Preview(title.indexOf('Tờ trình')===0?'submission':'outgoing');document.getElementById('transferPreviewTitle').textContent=title;document.getElementById('transferPreviewModal').classList.add('show')}
 function closeTransferPreview(){document.getElementById('transferPreviewModal').classList.remove('show')}
 function openDigitalSignModal(){document.getElementById('digitalSignModal').classList.add('show')}
 function closeDigitalSignModal(){document.getElementById('digitalSignModal').classList.remove('show')}
@@ -2686,6 +2686,7 @@ confirmTransfer=function(){
 
 function confirmTransferFromModal(){
   var action=String(pendingTransferAction||'');
+  if(action.startsWith('kh5')&&window.kh5&&typeof window.kh5.confirmSharedTransfer==='function')return window.kh5.confirmSharedTransfer();
   if(action==='khbuildClerkToTD')return confirmKHPTM2ClerkTransfer();
 
   // Fix riêng luồng Vô tuyến: NetX hoàn tất thẩm định -> Chuyên viên Ban KT.
