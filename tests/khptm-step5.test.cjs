@@ -14,6 +14,14 @@ const detail=r=>({files:[r.submission.id,...r.files.map(f=>f.id)],note:'Xem xét
 test('Căn cứ chỉ nhận KHPTM đã phê duyệt và ban hành của 3 nhóm chung',()=>{
  for(const invalid of [null,basis('CSHT'),{...basis('Vô tuyến'),decision:{signed:false,issued:true}},{...basis('BRCĐ'),decision:{signed:true,issued:false}}]) assert.throws(()=>W.create(invalid,'1'));
 });
+test('Nháp tạo mới cho nhập liệu nhưng chưa có căn cứ thì không sinh tài liệu hoặc chuyển xử lý',()=>{
+ const r=W.draft('PAKT-DRAFT');W.saveDraft(r,'pm',{...r.data,author:'PM lập hồ sơ'},r.rows);
+ assert.equal(W.canEdit(r,'pm'),true);assert.deepEqual(W.allowed(r,'pm'),[]);assert.deepEqual(W.coAllowed(r,'pm'),[]);
+ assert.throws(()=>W.installPair(r,'pm',[{docType:'report',revision:r.revision},{docType:'catalog',revision:r.revision}]));
+ assert.throws(()=>W.transfer(r,'pm','leadKTM',{files:[],note:'Yêu cầu số liệu'}));
+ r.viewer='lead';assert.equal(W.canEdit(r,'lead'),false);assert.equal(W.canApprove(r,'lead'),false);assert.equal(W.canSign(r,'lead'),false);
+ assert.throws(()=>W.saveDraft(r,'lead',r.data,r.rows));assert.equal(W.canIssue(r,'tctClerk'),false);
+});
 for(const type of W.types){
  test(type+': hai file cùng phiên bản, tạo lại không trùng và giữ upload',()=>{
   const r=prepared(type);r.files.push({id:'upload',generated:false});

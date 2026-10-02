@@ -39,13 +39,19 @@
   const canEdit = (r, actor) => mainOwns(r, actor) && actor === 'pm' && r.receipt.purpose === 'PREPARE';
   const canProvide = (r, actor) => infoRequest(r, actor)?.receipt.purpose === 'DATA_WORK' && provider(actor)?.pm === actor;
   const pendingRequests = r => (r.requests || []).filter(q => q.status !== 'RETURNED');
-  function create(basis, id) {
-    if (!basis || !types.includes(basis.type) || !basis.decision?.signed || !basis.decision?.issued) throw Error('Chọn KHPTM đã ký và ban hành');
+  const hasBasis = r => !!r?.basis && types.includes(r.basis.type) && r.basis.decision?.signed && r.basis.decision?.issued;
+  function draft(id) {
     const data = Object.fromEntries(fields.map(([key]) => [key, '']));
-    Object.assign(data, { name: 'Đề xuất lựa chọn PAKT, CN và quy mô ' + basis.type + ' năm ' + basis.year, unit: 'Ban KT', date: new Date().toISOString().slice(0, 10) });
-    return { id, basis: { ...basis, decision: { ...basis.decision } }, data, rows: [emptyRow()], revision: 1,
+    Object.assign(data, { name: 'Đề xuất lựa chọn PAKT, CN và quy mô', unit: 'Ban KT', date: new Date().toISOString().slice(0, 10) });
+    return { id, basis: null, data, rows: [emptyRow()], revision: 1,
       owner: 'pm', viewer: 'pm', receipt: { from: null, to: 'pm', purpose: 'PREPARE', revision: 1, files: [], time: new Date().toISOString() },
       files: [], archive: [], submission: null, history: [], exchange: [], drafts: {}, tab: 'files', issue: {}, requests: [], infoReceipts: {}, approval: null };
+  }
+  function create(basis, id) {
+    if (!hasBasis({ basis })) throw Error('Chọn KHPTM đã ký và ban hành');
+    const r = draft(id); r.basis = { ...basis, decision: { ...basis.decision } };
+    r.data.name += ' ' + basis.type + ' năm ' + basis.year;
+    return r;
   }
   function validate(data, rows) {
     if (!data.name.trim() || !data.author.trim() || !data.date || !data.selected.trim() || !data.method.trim() || !data.result.trim())
@@ -75,13 +81,14 @@
   }
   function installPair(r, actor, pair) {
     if (!canEdit(r, actor)) throw Error('Chỉ PM đang được giao lập đề xuất được tạo file');
+    if (!hasBasis(r)) throw Error('Chọn KHPTM đã ký và ban hành');
     validate(r.data, r.rows);
     if (pair.length !== 2 || pair[0].docType !== 'report' || pair[1].docType !== 'catalog' || pair.some(f => f.revision !== r.revision)) throw Error('Bộ báo cáo và danh mục không cùng phiên bản');
     // Hai tài liệu được thay cùng một lần; tạo lại không nhân đôi hoặc xóa tệp người dùng tải lên.
     r.files = [...r.files.filter(f => !f.generated), ...pair];
   }
-  const pairReady = r => ['report', 'catalog'].every(kind => r.files.some(f => f.docType === kind && f.revision === r.revision));
-  const receivedSubmission = r => r.submission && r.submission.revision === r.revision && r.receipt.revision === r.revision && r.receipt.files.includes(r.submission.id);
+  const pairReady = r => hasBasis(r) && ['report', 'catalog'].every(kind => r.files.some(f => f.docType === kind && f.revision === r.revision));
+  const receivedSubmission = r => hasBasis(r) && r.submission && r.submission.revision === r.revision && r.receipt.revision === r.revision && r.receipt.files.includes(r.submission.id);
   const canSign = (r, actor) => mainOwns(r, actor) && ['lead', 'tct'].includes(actor) && r.receipt.purpose === 'REVIEW' && !pendingRequests(r).length && receivedSubmission(r) && !r.submission.signatures.includes(actor);
   const canIssue = (r, actor) => mainOwns(r, actor) && actor === 'tctClerk' && r.receipt.purpose === 'ISSUE' &&
     ['lead', 'tct'].includes(r.receipt.from) && receivedSubmission(r) && r.submission.signatures.length > 0 && !r.submission.issued;
@@ -106,7 +113,7 @@
       q.response = { text, files: files.slice() }; q.responseRevision++; q.approvedRevision = 0; q.approval = null;
     }
   }
-  const coAllowed = (r, actor) => canEdit(r, actor) ? providers.filter(p => !(r.requests || []).some(q => q.unit === p.unit && q.status !== 'RETURNED')).map(p => p.lead) : [];
+  const coAllowed = (r, actor) => hasBasis(r) && canEdit(r, actor) ? providers.filter(p => !(r.requests || []).some(q => q.unit === p.unit && q.status !== 'RETURNED')).map(p => p.lead) : [];
   const viewAllowed = (r, actor) => Object.keys(roles).filter(key => key !== actor);
   function share(r, actor, detail, requestId) {
     r.infoReceipts ||= {};
@@ -125,7 +132,7 @@
     r.requests ||= []; r.requests.push(q); share(r, actor, detail, id); return q;
   }
   function allowed(r, actor) {
-    if (!owns(r, actor)) return [];
+    if (!hasBasis(r) || !owns(r, actor)) return [];
     const q = infoRequest(r, actor);
     if (q) return q.receipt.purpose === 'DATA_ASSIGN' ? [q.pm] : q.receipt.purpose === 'DATA_WORK' ? [q.lead] :
       q.receipt.purpose === 'DATA_REVIEW' ? [q.pm, ...(q.approvedRevision === q.responseRevision ? ['pm'] : [])] : [];
@@ -174,7 +181,7 @@
     if (!metadata.number.trim() || !metadata.date) throw Error('Nhập số và ngày ban hành');
     r.issue = { ...metadata }; r.submission.issued = true;
   }
-  const api = { types, roles, providers, provider, infoRequest, receiptFor, pendingRequests, fields, columns, emptyRow, create, owns, canEdit, canProvide, saveResponse,
+  const api = { types, roles, providers, provider, infoRequest, receiptFor, pendingRequests, fields, columns, emptyRow, draft, create, owns, canEdit, canProvide, saveResponse,
     save, saveDraft, validate, installPair, pairReady, allowed, coAllowed, viewAllowed, transfer, canApprove, approve, canApproveData, approveData, canSign, sign, canIssue, issue };
   root.KHStep5 = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
@@ -275,32 +282,28 @@
   }
   function basisPicker(selected) {
     const plans = kh4.approvedPlans();
-    return '<label for="kh5Basis">Căn cứ: KHPTM đã được phê duyệt <span class="red">*</span></label><select id="kh5Basis" onchange="kh5.chooseBasis(this.value)"><option value="">-- Chọn KHPTM đã phê duyệt --</option>' + plans.map(p => '<option value="' + esc(p.id) + '"' + (p.id === selected ? ' selected' : '') + '>' + esc(p.title + ' · QĐ ' + p.number + ' · ' + formatDateVN(p.date)) + '</option>').join('') + '</select><div id="kh5BasisAction" style="margin-top:8px">' + (selected ? button('Xem QĐ phê duyệt KHPTM', 'kh5.previewBasis()') : '') + '</div>' + (plans.length ? '' : note('Chưa có KHPTM đã ký và ban hành. Hoàn thành phê duyệt KHPTM ở bước trước để chọn căn cứ.') + button('Mở Xây dựng, trình KHPTM', 'openKHPTMBuildModule()'));
+    return '<label for="kh5Basis">Căn cứ: KHPTM đã được phê duyệt <span class="red">*</span></label><select id="kh5Basis" onchange="kh5.chooseBasis(this.value)"' + (!edit(current()) ? ' disabled' : '') + '><option value="">-- Chọn KHPTM đã phê duyệt --</option>' + plans.map(p => '<option value="' + esc(p.id) + '"' + (p.id === selected ? ' selected' : '') + '>' + esc(p.title + ' · QĐ ' + p.number + ' · ' + formatDateVN(p.date)) + '</option>').join('') + '</select>' + (plans.length ? '' : note('Chưa có KHPTM đã ký và ban hành. Hoàn thành phê duyệt KHPTM ở bước trước để chọn căn cứ.') + button('Mở Xây dựng, trình KHPTM', 'openKHPTMBuildModule()'));
   }
   function createScreen(basisId) {
     const basis = kh4.approvedPlans().find(p => p.id === basisId);
     creationBasis = basis?.id || ''; currentId = ''; showPage('kh5Page');
-    creationDraft = { data: Object.fromEntries(W.fields.map(([key]) => [key, ''])), rows: [W.emptyRow()], owner: 'pm', viewer: 'pm', receipt: { to: 'pm', purpose: 'PREPARE' } };
-    Object.assign(creationDraft.data, { unit: 'Ban KT', date: new Date().toISOString().slice(0, 10), name: basis ? 'Đề xuất lựa chọn PAKT, CN và quy mô ' + basis.type + ' năm ' + basis.year : 'Đề xuất lựa chọn PAKT, CN và quy mô' });
-    page.innerHTML = header('Tạo đề xuất lựa chọn PAKT, CN và quy mô', button('Lưu đề xuất', 'kh5.create()', true, 'primary') + button('Quay lại', 'kh5.list()'), 'Tạo mới') + section('Căn cứ lập đề xuất', basisPicker(creationBasis)) + form(creationDraft);
+    const id = 'PAKT-' + Date.now() + '-' + records.size; creationDraft = basis ? W.create(basis, id) : W.draft(id);
+    render();
   }
   function chooseBasis(id) {
-    creationBasis = id; document.getElementById('kh5BasisAction').innerHTML = id ? button('Xem QĐ phê duyệt KHPTM', 'kh5.previewBasis()') : '';
-    const basis = kh4.approvedPlans().find(p => p.id === id), name = document.getElementById('kh5Field_name');
-    if (basis && name && name.value.startsWith('Đề xuất lựa chọn PAKT, CN và quy mô')) name.value = 'Đề xuất lựa chọn PAKT, CN và quy mô ' + basis.type + ' năm ' + basis.year;
+    const r = creationDraft; if (!r || !edit(r)) return;
+    const input = readForm(r); r.data = input.data; r.rows = input.rows;
+    const basis = kh4.approvedPlans().find(p => p.id === id); creationBasis = basis?.id || ''; r.basis = basis ? W.create(basis, r.id).basis : null;
+    if (basis && r.data.name.startsWith('Đề xuất lựa chọn PAKT, CN và quy mô')) r.data.name = 'Đề xuất lựa chọn PAKT, CN và quy mô ' + basis.type + ' năm ' + basis.year;
+    render();
   }
-  function create() {
-    const basis = kh4.approvedPlans().find(p => p.id === creationBasis);
-    try { const input = readForm(creationDraft), r = W.create(basis, 'PAKT-' + Date.now() + '-' + records.size); W.saveDraft(r, 'pm', input.data, input.rows);
-      records.set(r.id, r); currentId = r.id; creationDraft = null; log(r, 'Tạo đề xuất căn cứ ' + basis.title + ' · QĐ ' + basis.number); render(); }
-    catch (error) { toast(error.message); }
-  }
+  function create() { save(); }
   function open(id) { if (!records.has(id)) return; currentId = id; records.get(id).viewer = records.get(id).owner; showPage('kh5Page'); render(); }
   function fieldHtml(r, key, label, kind) {
     const attrs = ' id="kh5Field_' + key + '" data-kh5-field="' + key + '"' + (!edit(r) ? ' disabled' : '');
     return '<div><label for="kh5Field_' + key + '">' + label + (['name', 'author', 'date', 'selected', 'method', 'result'].includes(key) ? ' <span class="red">*</span>' : '') + '</label>' + (kind === 'textarea' ? '<textarea' + attrs + ' style="min-height:90px">' + esc(r.data[key]) + '</textarea>' : '<input type="' + (kind === 'date' ? 'date' : 'text') + '"' + attrs + ' value="' + esc(r.data[key]) + '">') + '</div>';
   }
-  function group(r, title, start, end) { return section(title, '<div class="grid" style="grid-template-columns:repeat(2,minmax(0,1fr))">' + W.fields.slice(start, end).map(f => fieldHtml(r, ...f)).join('') + '</div>'); }
+  function group(r, title, start, end) { return section(title, '<div class="' + (start === 0 ? 'kh2-info-grid' : 'grid two') + '">' + W.fields.slice(start, end).map(f => fieldHtml(r, ...f)).join('') + '</div>'); }
   function rowHtml(row, index, editable) {
     return '<tr data-kh5-row><td>' + (index + 1) + '</td>' + W.columns.map(([key, label]) => '<td><input aria-label="' + esc(label + ' ' + (index + 1)) + '" data-kh5-col="' + key + '" type="' + (['quantity', 'price'].includes(key) ? 'number' : 'text') + '"' + (['quantity', 'price'].includes(key) ? ' min="0" step="any"' : '') + ' value="' + esc(row[key]) + '"' + (!editable ? ' disabled' : '') + '></td>').join('') + '<td>' + button('Xóa', 'kh5.removeRow(' + index + ')', editable) + '</td></tr>';
   }
@@ -317,7 +320,10 @@
   function removeRow(index) { const r = current(); if (!edit(r)) return; const body = document.getElementById('kh5CatalogRows'); body.children[index]?.remove(); [...body.children].forEach((row, i) => { row.children[0].textContent = i + 1; row.querySelector('button').setAttribute('onclick', 'kh5.removeRow(' + i + ')'); }); }
   function save(silent) {
     const r = current(); if (!r) return false;
-    try { const input = readForm(r); if (W.saveDraft(r, r.viewer, input.data, input.rows)) log(r, 'Lưu nháp đề xuất phiên bản ' + r.revision); if (!silent) { render(); toast('Đã lưu nháp đề xuất'); } return true; }
+    try { if (!r.basis) throw Error('Chọn KHPTM đã được phê duyệt làm căn cứ');
+      const input = readForm(r); if (W.saveDraft(r, r.viewer, input.data, input.rows)) log(r, 'Lưu nháp đề xuất phiên bản ' + r.revision);
+      if (r === creationDraft) { records.set(r.id, r); currentId = r.id; creationDraft = null; log(r, 'Tạo đề xuất căn cứ ' + r.basis.title + ' · QĐ ' + r.basis.number); }
+      if (!silent) { render(); toast('Đã lưu nháp đề xuất'); } return true; }
     catch (error) { toast(error.message); return false; }
   }
   function total(r) { return r.rows.reduce((sum, row) => sum + Number(row.quantity) * Number(row.price || 0), 0); }
@@ -347,7 +353,7 @@
   function ensureSubmission(r) { if (!r.submission) r.submission = buildFile(r, 'submission'); return r.submission; }
   function generate() {
     const r = current(); if (!edit(r) || !save(true)) return;
-    try { const pair = [buildFile(r, 'report'), buildFile(r, 'catalog')], old = r.files.filter(f => f.generated); W.installPair(r, r.viewer, pair); old.forEach(f => URL.revokeObjectURL(f.url));
+    try { W.validate(r.data, r.rows); const pair = [buildFile(r, 'report'), buildFile(r, 'catalog')], old = r.files.filter(f => f.generated); W.installPair(r, r.viewer, pair); old.forEach(f => URL.revokeObjectURL(f.url));
       log(r, 'Tạo đồng thời Báo cáo đề xuất và file danh mục từ template · phiên bản ' + r.revision); r.tab = 'files'; render(); toast('Đã thêm Báo cáo đề xuất và file danh mục vào Tài liệu đính kèm'); }
     catch (error) { toast(error.message); }
   }
@@ -358,7 +364,7 @@
   }
   function previewBasis() { const basis = records.get(currentId)?.basis || kh4.approvedPlans().find(p => p.id === creationBasis); if (basis) preview('QĐ phê duyệt ' + basis.title, basis.decision.html, basis.decision.kind === 'uploaded' ? basis.decision.url : null); }
   function previewSubmission() {
-    const r = current(); if (!r) return;
+    const r = current(); if (!r?.basis) return toast('Chọn KHPTM đã được phê duyệt làm căn cứ');
     const q = W.infoRequest(r, r.viewer); if (q) { const document = q.documents.find(file => file.docType === 'submission'); if (document) preview(document.name, document.html); return; }
     if (edit(r)) { const input = readForm(r); preview('Xem Tờ trình', paper({ ...r, ...input, submission: null }, 'submission')); }
     else preview('Xem Tờ trình', r.submission?.html || paper(r, 'submission'));
@@ -372,8 +378,9 @@
   }
   function actions(r) {
     const q = W.infoRequest(r, r.viewer);
-    let html = button('Danh sách', 'kh5.list()') + button('Xem hồ sơ KHPTM', "kh4.openApprovedPlan('" + r.basis.id + "')") + button('Xem QĐ phê duyệt KHPTM', 'kh5.previewBasis()') + (!q || q.documents.some(file => file.docType === 'submission') ? button('Xem Tờ trình', 'kh5.previewSubmission()') : '');
+    let html = button('Danh sách', 'kh5.list()');
     if (r.viewer === 'pm') html += button('Lưu nháp', 'kh5.save()', edit(r));
+    html += button('Xem hồ sơ KHPTM', "kh4.openApprovedPlan('" + (r.basis?.id || '') + "')", !!r.basis) + button('Xem QĐ phê duyệt KHPTM', 'kh5.previewBasis()', !!r.basis) + (!q || q.documents.some(file => file.docType === 'submission') ? button('Xem Tờ trình', 'kh5.previewSubmission()', !!r.basis) : '');
     if (r.viewer === 'lead') html += button('Duyệt', 'kh5.approve()', W.canApprove(r, r.viewer)) + button('Trả lại', "kh5.transfer('pm')", own(r) && !r.approval, 'kh2-danger');
     if (q?.receipt.purpose === 'DATA_REVIEW') html += button('Duyệt', 'kh5.approveData()', W.canApproveData(r, r.viewer)) + button('Trả lại', "kh5.transfer('" + q.pm + "')", own(r), 'kh2-danger');
     if (['lead', 'tct'].includes(r.viewer)) html += button('Ký số Tờ trình', 'kh5.sign()', W.canSign(r, r.viewer));
@@ -382,26 +389,28 @@
   }
   function render() {
     const r = current(); if (!r) return; showPage('kh5Page');
+    const creating = r === creationDraft;
     const q = W.infoRequest(r, r.viewer), receipt = W.receiptFor(r, r.viewer), context = receipt || { note: 'Vai trò đang xem chưa nhận phiếu chuyển xử lý.' };
-    page.innerHTML = header(moduleTitle + ' - ' + r.basis.type, actions(r), 'Chi tiết xử lý', true) + '<div class="khptm-rolebar"><label for="kh5Role">Vai trò test</label><select id="kh5Role" onchange="kh5.setRole(this.value)">' + roleOptions(r) + '</select><span class="right-note">' + esc(taskLabel(r)) + '</span></div>' +
-      section('Thông tin hồ sơ', '<div class="grid two"><div><label>Căn cứ KHPTM đã phê duyệt</label><div>' + esc(r.basis.title + ' · QĐ ' + r.basis.number) + '</div></div><div><label>Người xử lý chính</label><div>' + esc(W.roles[q?.owner || r.owner]) + '</div></div><div><label>Người chuyển trước</label><div>' + esc(W.roles[context.from] || (r.viewer === 'pm' && !r.receipt.from ? 'PM khởi tạo' : 'Chưa nhận nhiệm vụ')) + '</div></div><div><label>Nội dung xử lý</label><div style="white-space:pre-wrap">' + esc(context.note || 'Lập đề xuất lựa chọn PAKT, CN và tính toán quy mô') + '</div></div></div>' + ((r.requests || []).length ? '<table style="margin-top:10px"><thead><tr><th>Đơn vị cung cấp số liệu</th><th>Người xử lý</th><th>Trạng thái</th></tr></thead><tbody>' + r.requests.map(x => '<tr><td>' + esc(x.unit) + '</td><td>' + esc(W.roles[x.owner]) + '</td><td>' + esc(x.status === 'RETURNED' ? 'Đã gửi số liệu được duyệt về Ban KT' : x.receipt.purpose === 'DATA_ASSIGN' ? 'Chờ phân công' : x.receipt.purpose === 'DATA_WORK' ? 'Đang cung cấp số liệu' : x.approvedRevision === x.responseRevision ? 'Đã duyệt – chờ gửi Ban KT' : 'Chờ duyệt số liệu') + '</td></tr>').join('') + '</tbody></table>' : '')) +
-      (r.viewer === 'pm' ? form(r) : section('Preview văn bản', '<div class="khptm-doc-preview"><div class="khptm-paper">' + (q ? q.receipt.purpose === 'DATA_REVIEW' ? '<h2>SỐ LIỆU HIỆN TRẠNG – ' + esc(q.unit) + '</h2><p>' + esc(q.dossierName) + '</p><p style="white-space:pre-wrap">' + esc(q.response.text) + '</p><p>Phiên bản số liệu: ' + q.receipt.responseRevision + '</p>' + q.response.files.map(id => '<p>' + esc(r.files.find(file => file.id === id)?.name || id) + '</p>').join('') : '<p><b>Yêu cầu cung cấp số liệu:</b> ' + esc(q.dossierName) + '</p><p style="white-space:pre-wrap">' + esc(q.receipt.note) + '</p>' + r.basis.decision.html : r.submission?.html || paper(r, 'submission')) + '</div></div>')) +
-      (r.viewer === 'tctClerk' ? section('Thông tin ban hành', '<div class="grid" style="grid-template-columns:repeat(4,minmax(0,1fr))">' + [['number', 'Số văn bản'], ['date', 'Ngày ban hành'], ['suffix', 'Ký hiệu'], ['eoffice', 'Số eOffice']].map(([key, label]) => '<div><label>' + label + '</label><input id="kh5Issue_' + key + '" type="' + (key === 'date' ? 'date' : 'text') + '" value="' + esc(r.issue[key] || '') + '"' + (!W.canIssue(r, r.viewer) ? ' disabled' : '') + '></div>').join('') + '</div>') : '') + '<div id="kh5Extended"></div>';
+    page.innerHTML = header((creating ? 'Tạo đề xuất lựa chọn PAKT, CN và quy mô' : moduleTitle) + (r.basis ? ' - ' + r.basis.type : ''), actions(r), creating ? 'Tạo mới' : 'Chi tiết xử lý', true) + '<div class="khptm-rolebar"><label for="kh5Role">Vai trò test</label><select id="kh5Role" onchange="kh5.setRole(this.value)">' + roleOptions(r) + '</select><span class="right-note">' + esc(creating && r.viewer === 'pm' ? 'Lập đề xuất · chưa lưu hồ sơ' : taskLabel(r)) + '</span></div>' +
+      section('Thông tin hồ sơ', '<div class="kh2-info-grid"><div class="kh5-wide">' + (creating ? basisPicker(creationBasis) : '<label>Căn cứ KHPTM đã phê duyệt</label><div>' + esc(r.basis.title + ' · QĐ ' + r.basis.number) + '</div>') + '</div><div><label>Loại thiết bị</label><input value="' + esc(r.basis?.type || '') + '" readonly></div><div><label>Năm kế hoạch</label><input value="' + esc(r.basis?.year || '') + '" readonly></div><div><label>Người xử lý chính</label><div>' + esc(W.roles[q?.owner || r.owner]) + '</div></div><div><label>Người chuyển trước</label><div>' + esc(W.roles[context.from] || (r.viewer === 'pm' && !r.receipt.from ? 'PM khởi tạo' : 'Chưa nhận nhiệm vụ')) + '</div></div><div class="kh5-wide"><label>Nội dung xử lý</label><div style="white-space:pre-wrap">' + esc(context.note || 'Lập đề xuất lựa chọn PAKT, CN và tính toán quy mô') + '</div></div></div>' + ((r.requests || []).length ? '<table style="margin-top:10px"><thead><tr><th>Đơn vị cung cấp số liệu</th><th>Người xử lý</th><th>Trạng thái</th></tr></thead><tbody>' + r.requests.map(x => '<tr><td>' + esc(x.unit) + '</td><td>' + esc(W.roles[x.owner]) + '</td><td>' + esc(x.status === 'RETURNED' ? 'Đã gửi số liệu được duyệt về Ban KT' : x.receipt.purpose === 'DATA_ASSIGN' ? 'Chờ phân công' : x.receipt.purpose === 'DATA_WORK' ? 'Đang cung cấp số liệu' : x.approvedRevision === x.responseRevision ? 'Đã duyệt – chờ gửi Ban KT' : 'Chờ duyệt số liệu') + '</td></tr>').join('') + '</tbody></table>' : '')) +
+      (r.viewer === 'pm' ? form(r) : section('Preview văn bản', '<div class="khptm-doc-preview"><div class="khptm-paper">' + (!r.basis ? '<p>Chọn KHPTM đã phê duyệt để lập đề xuất và xem văn bản.</p>' : q ? q.receipt.purpose === 'DATA_REVIEW' ? '<h2>SỐ LIỆU HIỆN TRẠNG – ' + esc(q.unit) + '</h2><p>' + esc(q.dossierName) + '</p><p style="white-space:pre-wrap">' + esc(q.response.text) + '</p><p>Phiên bản số liệu: ' + q.receipt.responseRevision + '</p>' + q.response.files.map(id => '<p>' + esc(r.files.find(file => file.id === id)?.name || id) + '</p>').join('') : '<p><b>Yêu cầu cung cấp số liệu:</b> ' + esc(q.dossierName) + '</p><p style="white-space:pre-wrap">' + esc(q.receipt.note) + '</p>' + r.basis.decision.html : r.submission?.html || paper(r, 'submission')) + '</div></div>')) +
+      (r.viewer === 'tctClerk' ? section('Thông tin ban hành', '<div class="khptm-issue-grid">' + [['number', 'Số văn bản'], ['date', 'Ngày ban hành'], ['suffix', 'Ký hiệu'], ['eoffice', 'Số eOffice']].map(([key, label]) => '<div><label>' + label + '</label><input id="kh5Issue_' + key + '" type="' + (key === 'date' ? 'date' : 'text') + '" value="' + esc(r.issue[key] || '') + '"' + (!W.canIssue(r, r.viewer) ? ' disabled' : '') + '></div>').join('') + '</div>') : '') + '<div id="kh5Extended"></div>';
     renderExtended(r);
   }
-  function setRole(role) { const r = current(); if (r && W.roles[role]) { if (modal) hideTransferModal(); r.viewer = role; r.tab = role === 'pm' ? 'files' : 'exchange'; render(); } }
+  function setRole(role) { const r = current(); if (r && W.roles[role]) { if (modal) hideTransferModal(); if (r === creationDraft && r.viewer === 'pm') { const input = readForm(r); r.data = input.data; r.rows = input.rows; } r.viewer = role; r.tab = role === 'pm' ? 'files' : 'exchange'; render(); } }
   function approve() { const r = current(); try { W.approve(r, r.viewer); log(r, 'Duyệt phương án kỹ thuật, công nghệ và quy mô phiên bản ' + r.revision); render(); toast('Đã duyệt phương án'); } catch (e) { toast(e.message); } }
   function approveData() { const r = current(); try { W.approveData(r, r.viewer); log(r, 'Duyệt số liệu hiện trạng của ' + W.infoRequest(r, r.viewer).unit); render(); toast('Đã duyệt số liệu; dùng Chuyển để gửi Ban KT'); } catch (e) { toast(e.message); } }
   function reset() {
     const old = current(); if (!old) return; if (modal) hideTransferModal(); closeDigitalSignModal();
-    const r = W.create(old.basis, old.id); W.saveDraft(r, 'pm', { ...old.data }, old.rows); records.set(r.id, r);
+    const creating = old === creationDraft, input = old.viewer === 'pm' ? readForm(old) : { data: old.data, rows: old.rows };
+    const r = old.basis ? W.create(old.basis, old.id) : W.draft(old.id); W.saveDraft(r, 'pm', { ...input.data, name: input.data.name || r.data.name, date: input.data.date || r.data.date }, input.rows); if (creating) creationDraft = r; else records.set(r.id, r);
     [...old.files, ...(old.submission ? [old.submission] : []), ...old.archive.flatMap(v => [...v.files, ...(v.submission ? [v.submission] : [])])].forEach(f => { if (f.url) URL.revokeObjectURL(f.url); });
-    log(r, 'Reset luồng test: PM Ban KT lập đề xuất từ ' + r.basis.title); render();
+    log(r, 'Reset luồng test: PM Ban KT lập đề xuất' + (r.basis ? ' từ ' + r.basis.title : '')); render();
   }
   function renderExtended(r) {
     const host = document.getElementById('kh5Extended'); host.innerHTML = extTemplate.replaceAll('khptm2', 'kh5').replaceAll('switchKHPTM2ExtTab', 'kh5.extTab').replaceAll('sendKHPTM2Exchange', 'kh5.sendExchange').replaceAll('kh5ExchangeFileChanged', 'kh5.exchangeFileChanged');
     const row = (file, i, action) => '<tr><td class="center">' + i + '</td><td class="center">' + (file.signatures?.length || file.signed ? '☒' : '☐') + '</td><td class="center"><input type="checkbox" checked disabled></td><td class="center"><input type="checkbox"' + (file.docType === 'report' ? ' checked' : '') + ' disabled></td><td class="center"><input type="checkbox"' + (file.docType !== 'report' ? ' checked' : '') + ' disabled></td><td>' + esc(file.number || '') + '</td><td>' + esc(file.eoffice || '') + '</td><td>' + esc(file.issuer || r.data.unit) + '</td><td>' + esc(file.signer || '--') + '</td><td>' + esc(file.group || (file.docType === 'report' ? 'Báo cáo đề xuất' : 'File danh mục')) + '</td><td><span class="pm-ext-file" onclick="' + action + '">' + esc(file.name) + '</span></td><td>' + esc(file.actor || '') + '</td><td>' + esc(file.time || '') + '</td><td></td><td></td><td>' + button('Xem', action, true, 'pm-ext-action') + (file.url ? ' <a class="pm-ext-action" href="' + file.url + '" download="' + esc(file.name) + '">Tải</a>' : '') + '</td></tr>';
-    host.querySelector('.pm-ext-table tbody').innerHTML = row({ ...r.basis.decision, number: r.basis.number, issuer: 'Tập đoàn', signer: 'LĐ Tập đoàn', group: 'QĐ phê duyệt KHPTM' }, 1, 'kh5.previewBasis()') + r.files.map((f, i) => row(f, i + 2, 'kh5.previewFile(' + i + ')')).join('');
+    host.querySelector('.pm-ext-table tbody').innerHTML = (r.basis ? row({ ...r.basis.decision, number: r.basis.number, issuer: 'Tập đoàn', signer: 'LĐ Tập đoàn', group: 'QĐ phê duyệt KHPTM' }, 1, 'kh5.previewBasis()') : '') + r.files.map((f, i) => row(f, i + (r.basis ? 2 : 1), 'kh5.previewFile(' + i + ')')).join('') || '<tr><td colspan="16">Chưa có tài liệu đính kèm.</td></tr>';
     if (r.archive.length) { const archive = document.createElement('div'); archive.style.marginTop = '10px'; archive.innerHTML = '<b>Phiên bản tài liệu trước</b>' + r.archive.map((v, vi) => '<div class="toolbar"><span class="mini">Phiên bản ' + v.revision + '</span>' + v.files.map((f, fi) => button(f.name, 'kh5.previewArchive(' + vi + ',' + fi + ')')).join('') + (v.submission ? '<a href="' + v.submission.url + '" download="' + esc(v.submission.name) + '">Tải Tờ trình' + (v.submission.signatures.length ? ' đã ký (demo)' : '') + '</a>' : '') + '</div>').join(''); host.querySelector('#kh5ExtFiles').appendChild(archive); }
     const links = host.querySelectorAll('.pm-ext-add-links span');
     [generate, addUploadRow, saveUploads].forEach((fn, i) => { links[i].removeAttribute('onclick'); links[i].onclick = fn; links[i].setAttribute('role', 'button'); links[i].tabIndex = 0; links[i].onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fn(); } }; });
