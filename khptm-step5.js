@@ -239,6 +239,22 @@
     openPreview(documentTitle(r.generated.kind) + ' - Đề xuất PAKT, CN và quy mô', generatedHtml(r));
   }
 
+  function viewDocumentType(kind) {
+    const r = record();
+    if (!['submission','report'].includes(kind)) return;
+    if (isEditable(r)) captureFields();
+    const snapshot = r.generated && r.generated.kind === kind
+      ? r.generated.snapshot
+      : {
+          kind,
+          basisId: r.basisId,
+          type: r.type,
+          year: r.year,
+          fields: structuredClone(r.fields)
+        };
+    openPreview(documentTitle(kind) + ' - Đề xuất PAKT, CN và quy mô', generatedHtml(r, snapshot));
+  }
+
   function setDocType(value) {
     const r = record();
     if (!isEditable(r)) return;
@@ -752,8 +768,11 @@
     if (!host) return;
     const r = record();
     const defaultTab = viewer === 'leader' || viewer === 'provider' ? 'exchange' : 'files';
+    const extAction = isEditable(r)
+      ? '<button class="kh5-ext-create" onclick="kh5.openInfo(\'request\')">Tạo VB yêu cầu cung cấp thông tin</button>'
+      : '';
 
-    host.innerHTML = '<div class="pm-ims-extended"><span class="pm-ext-caption">Thông tin mở rộng</span>' +
+    host.innerHTML = '<div class="pm-ims-extended"><span class="pm-ext-caption">Thông tin mở rộng</span>' + extAction +
       '<div class="pm-ext-tabs">' +
         '<div class="pm-ext-tab '+(defaultTab==='files'?'active':'')+'" data-kh5-tab="files" onclick="kh5.extTab(\'files\',this)">Tài liệu đính kèm</div>' +
         '<div class="pm-ext-tab" data-kh5-tab="route" onclick="kh5.extTab(\'route\',this)">Lịch sử luân chuyển</div>' +
@@ -842,11 +861,12 @@
     let html = '<button onclick="openKHPTMPAKTModule()">Danh sách</button>';
     if (viewer === 'pm' && owns(r,'pm')) {
       if (r.status === 'DONE') {
-        if (r.generated) html += '<button class="primary" onclick="kh5.viewGenerated()">Xem ' + (r.generated.kind==='report'?'báo cáo':'tờ trình') + '</button>';
+        html += '<button onclick="kh5.viewDocumentType(\'submission\')">Xem tờ trình</button>';
+        html += '<button onclick="kh5.viewDocumentType(\'report\')">Xem báo cáo</button>';
       } else {
         html += '<button onclick="kh5.saveDraft()">Lưu nháp</button>';
-        html += '<button onclick="kh5.openInfo(\'request\')">Tạo VB yêu cầu cung cấp thông tin</button>';
-        if (r.generated) html += '<button onclick="kh5.viewGenerated()">Xem ' + (r.generated.kind==='report'?'báo cáo':'tờ trình') + '</button>';
+        html += '<button onclick="kh5.viewDocumentType(\'submission\')">Xem tờ trình</button>';
+        html += '<button onclick="kh5.viewDocumentType(\'report\')">Xem báo cáo</button>';
         html += '<button class="khptm-emphasis" onclick="kh5.openTransfer()">Chuyển</button>';
       }
     }
@@ -919,7 +939,7 @@
     if (!shell || document.getElementById('kh5List')) return;
 
     const style = document.createElement('style');
-    style.textContent = '.kh5-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 12px}.kh5-field-full{grid-column:1/-1}.kh5-survey-input{color:#c62828!important;font-weight:800!important}.kh5-survey-text{color:#c62828!important;font-weight:800!important}.kh5-basis-row{display:grid;grid-template-columns:minmax(320px,1fr) auto;gap:9px;align-items:end}.kh5-output-row{display:grid;grid-template-columns:minmax(280px,420px) auto auto;gap:9px;align-items:end}.kh5-transfer-choice{display:grid;grid-template-columns:28px 220px 1fr;gap:7px;align-items:center;border-bottom:1px solid #e1e8ef;padding:10px 6px}.kh5-transfer-choice input{width:auto}.kh5-transfer-choice span{font-size:12px;color:#61778b}.kh5-doc{font-family:"Times New Roman",serif;color:#111;line-height:1.5}.kh5-doc h2,.kh5-doc h3{text-align:center}.kh5-rolebar{display:flex;align-items:center;gap:8px;background:#eef6ff;border:1px solid #bdd5e9;padding:8px 10px;margin-bottom:10px}.kh5-rolebar label{margin:0}.kh5-rolebar select{width:auto;min-width:240px}.kh5-rolebar .right-note{margin-left:auto;color:#58708a;font-size:12px}.kh5-form-grid .kh5-field-full textarea{min-height:86px}@media(max-width:850px){.kh5-form-grid,.kh5-basis-row,.kh5-output-row{grid-template-columns:1fr}.kh5-transfer-choice{grid-template-columns:28px 1fr}.kh5-transfer-choice span{grid-column:2}}';
+    style.textContent = '.kh5-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 12px}.kh5-field-full{grid-column:1/-1}.kh5-survey-input{color:#c62828!important;font-weight:800!important}.kh5-survey-text{color:#c62828!important;font-weight:800!important}.kh5-basis-row{display:grid;grid-template-columns:minmax(320px,1fr) auto;gap:9px;align-items:end}.kh5-output-row{display:grid;grid-template-columns:minmax(280px,420px) auto auto;gap:9px;align-items:end}.kh5-transfer-choice{display:grid;grid-template-columns:28px 220px 1fr;gap:7px;align-items:center;border-bottom:1px solid #e1e8ef;padding:10px 6px}.kh5-transfer-choice input{width:auto}.kh5-transfer-choice span{font-size:12px;color:#61778b}.kh5-doc{font-family:"Times New Roman",serif;color:#111;line-height:1.5}.kh5-doc h2,.kh5-doc h3{text-align:center}.kh5-rolebar{display:flex;align-items:center;gap:8px;background:#eef6ff;border:1px solid #bdd5e9;padding:8px 10px;margin-bottom:10px}.kh5-rolebar label{margin:0}.kh5-rolebar select{width:auto;min-width:240px}.kh5-rolebar .right-note{margin-left:auto;color:#58708a;font-size:12px}.kh5-ext-create{position:absolute;right:8px;top:-17px;z-index:3;background:#fff;color:#0766ad;border:1px solid #86a8c8;padding:6px 10px;white-space:nowrap}.kh5-form-grid .kh5-field-full textarea{min-height:86px}@media(max-width:850px){.kh5-form-grid,.kh5-basis-row,.kh5-output-row{grid-template-columns:1fr}.kh5-transfer-choice{grid-template-columns:28px 1fr}.kh5-transfer-choice span{grid-column:2}}';
     document.head.appendChild(style);
 
     const list = document.createElement('section');
@@ -952,7 +972,7 @@
 
   window.openKHPTMPAKTModule = openModule;
   window.kh5 = {
-    openType, setRole, fieldChanged, setBasis, setDocType, saveDraft, generate, viewGenerated, viewDecision,
+    openType, setRole, fieldChanged, setBasis, setDocType, saveDraft, generate, viewGenerated, viewDocumentType, viewDecision,
     openInfo, infoFieldChanged, previewInfo, saveInfo, closeInfo,
     openTransfer, closeTransfer, confirmTransfer, signLeader, openReturn, closeReturn, confirmReturn,
     extTab, sendExchange, exchangeFileChanged, previewExchangeAttachment, previewStaged,
