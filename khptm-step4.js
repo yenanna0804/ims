@@ -470,6 +470,7 @@
 
   function renderExchange(r) {
     const host = document.getElementById('kh4Exchange');
+    if (window.khInfo) return window.khInfo.renderExchangeInto(host, r.exchange);
     if (host) host.innerHTML = r.exchange.length ? r.exchange.map(x => '<div class="history-item"><div class="history-dot"></div><div><b>' + esc(x.actor) + '</b><div>' + esc(x.text || '') + '</div>' +
       (x.file ? '<div class="mini">' + (x.url ? '<a href="' + x.url + '" download="' + esc(x.file) + '">' + esc(x.file) + '</a>' : esc(x.file)) + '</div>' : '') + '<div class="mini">' + esc(x.time) + '</div></div></div>').join('') : '<div class="mini" style="padding:8px">Chưa có nội dung trao đổi.</div>';
   }

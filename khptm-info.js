@@ -25,7 +25,7 @@
   const escape = value => esc(String(value == null ? '' : value));
   function key() { return khptm2DeviceType + '/' + (isKHPTMPairType() && khptmPairRecordRole === 'COORD' ? 'COORD' : 'MAIN'); }
   function record() {
-    if (!records.has(key())) records.set(key(), {requests:{},receipt:null});
+    if (!records.has(key())) records.set(key(), {requests:{},receipt:null,drafts:{}});
     return records.get(key());
   }
   function permission(kind) {
@@ -130,8 +130,78 @@
     if (kind==='request') {const old=r.requests[code];doc.version=(old && old.version || 0)+1;doc.response=old && old.response;r.requests[code]=doc;Object.assign(khptm2Requests[code],data,{status:'Đã lập yêu cầu'});}
     else { doc.version=(r.receipt.response && r.receipt.response.version || 0)+1;doc.requestVersion=r.receipt.requestVersion;doc.sender=r.receipt.sender;r.receipt.response=doc; }
     khptm2Log(khptm2Role,'Lưu '+(kind==='request'?'VB yêu cầu cung cấp thông tin':'VB cung cấp thông tin')+' · Yêu cầu '+code);
-    closeKHPTM2InfoModal();renderKHPTMBuild();toast('Đã lưu văn bản vào Tài liệu đính kèm');
+    rememberComposer();
+    const pending=draftExchange(), attachment={kind,code,name:fileName(kind,code,doc),doc:structuredClone(doc)};
+    const previous=pending.attachments.findIndex(a=>a.kind===kind && a.code===code);
+    if(previous<0)pending.attachments.push(attachment);else pending.attachments[previous]=attachment;
+    closeKHPTM2InfoModal();renderKHPTMBuild();openKHPTM2ExchangeTab();
+    document.getElementById('khptm2QuickExchange')?.focus();
+    toast('Đã gắn văn bản vào nội dung trao đổi. Nhập nội dung rồi nhấn Gửi');
   }
+  // Composer drafts belong to the dossier and actual actor; sent documents keep their own snapshot.
+  let composerSession=null;
+  function actorKey(){return khptm2Role+(khptm2Role==='Đơn vị cung cấp thông tin'?'/'+khptm2ProviderUnit:'');}
+  function draftExchange(){
+    const r=record();if(!r.drafts)r.drafts={};
+    if(!r.drafts[actorKey()])r.drafts[actorKey()]={text:'',attachments:[],upload:null};
+    return r.drafts[actorKey()];
+  }
+  function rememberComposer(){
+    const ta=document.getElementById('khptm2QuickExchange');
+    if(composerSession && ta)composerSession.draft.text=ta.value;
+  }
+  function previewAttachment(attachment){
+    if(attachment.kind!=='upload')return preview(attachment.kind,attachment.doc.document,attachment.code);
+    document.getElementById('khptmPreviewTitle').textContent=attachment.name;
+    const paper=document.getElementById('khptmPreviewPaper');
+    paper.innerHTML=attachment.mime==='application/pdf'?'<iframe title="'+escape(attachment.name)+'" src="'+escape(attachment.url)+'" style="width:100%;height:65vh;border:0"></iframe>':
+      attachment.mime && attachment.mime.startsWith('image/')?'<img alt="'+escape(attachment.name)+'" src="'+escape(attachment.url)+'" style="max-width:100%">':
+      '<a href="'+escape(attachment.url)+'" download="'+escape(attachment.name)+'">Tải '+escape(attachment.name)+'</a>';
+    document.getElementById('khptmPreviewModal').classList.add('show');
+  }
+  function pendingPreview(index){const d=draftExchange(),a=index==='upload'?d.upload:d.attachments[Number(index)];if(a)previewAttachment(a);}
+  function removePending(index){
+    const d=draftExchange();if(index==='upload'){if(d.upload)URL.revokeObjectURL(d.upload.url);d.upload=null;khptm2ExchangeDraftFile='';const file=document.getElementById('khptm2ExchangeFile');if(file)file.value='';}
+    else d.attachments.splice(Number(index),1);
+    renderPending();
+  }
+  function renderPending(){
+    const d=draftExchange(),host=document.getElementById('khInfoPendingAttachments');if(!host)return;
+    const name=document.getElementById('khptm2ExchangeFileName');if(name)name.textContent=d.upload?d.upload.name:'Chưa chọn tệp';
+    const row=(a,index)=>'<div class="file-chip"><span class="pm-ext-file">'+escape(a.name)+'</span><button class="small" onclick="khInfo.pendingPreview('+ (index==='upload'?"'upload'":index)+')">Xem file</button><button class="small danger" onclick="khInfo.removePending('+(index==='upload'?"'upload'":index)+')">Gỡ</button></div>';
+    host.innerHTML=d.attachments.map(row).join('')+(d.upload?row(d.upload,'upload'):'');
+  }
+  function mountComposer(){
+    const ta=document.getElementById('khptm2QuickExchange');if(!ta)return;
+    const d=draftExchange();composerSession={key:key(),actor:actorKey(),draft:d};
+    ta.value=d.text;ta.oninput=()=>{d.text=ta.value;};khptm2ExchangeDraftFile=d.upload?d.upload.name:'';
+    let pending=document.getElementById('khInfoPendingAttachments');
+    if(!pending){pending=document.createElement('div');pending.id='khInfoPendingAttachments';ta.parentElement.appendChild(pending);}
+    renderPending();
+  }
+  function exchangeAttachments(entry){return entry.attachments && entry.attachments.length?entry.attachments:entry.file?[{kind:'upload',name:entry.file,url:entry.url||'',mime:''}]:[];}
+  function renderExchangeInto(host,entries){
+    if(!host)return;
+    host.innerHTML='<div style="overflow:auto"><table class="exchange-history-table"><thead><tr><th style="width:68px">TT</th><th style="width:400px">Người gửi</th><th style="width:260px">Lãnh đạo chỉ đạo</th><th style="width:200px">Thời gian</th><th>Nội dung</th></tr></thead><tbody>'+ (entries.length?entries.map((entry,index)=>
+      '<tr><td class="exchange-col-no">'+(entries.length-index)+'</td><td class="exchange-col-sender"><div class="exchange-sender-name">'+escape(entry.senderName||entry.actor)+'</div>'+(entry.phone?'<div class="exchange-sender-phone">( Điện thoại: '+escape(entry.phone)+' )</div>':'')+'</td><td class="exchange-col-leader"><div class="exchange-leader-text">'+escape(entry.leader||'—')+'</div></td><td class="exchange-col-time">'+escape(entry.time)+'</td><td><div class="exchange-content"><span class="blue">'+escape(entry.text||'').replace(/\n/g,'<br>')+'</span><span class="action"><b>Thao tác:</b> '+escape(entry.action||'Gửi trao đổi')+'</span>'+exchangeAttachments(entry).map((a,i)=>'<br><button class="exchange-file-link" data-khinfo-doc="'+index+':'+i+'" style="border:0;padding:0;background:transparent">Xem file đính kèm: '+escape(a.name)+'</button>').join('')+'</div></td></tr>'
+    ).join(''):'<tr><td colspan="5" class="mini" style="text-align:center">Chưa có nội dung trao đổi.</td></tr>')+'</tbody></table></div>';
+    host.onclick=event=>{const button=event.target.closest('[data-khinfo-doc]');if(!button)return;const [index,file]=button.dataset.khinfoDoc.split(':').map(Number),attachment=exchangeAttachments(entries[index])[file];if(attachment){if(attachment.kind==='upload' && !attachment.url)return toast('Mở tệp đính kèm: '+attachment.name);previewAttachment(attachment);}};
+  }
+  renderKHPTM2Exchange=function(){renderExchangeInto(document.getElementById('khptm2Exchange'),khptm2Exchange);};
+  sendKHPTM2Exchange=function(){
+    rememberComposer();const d=draftExchange(),text=d.text.trim(),attachments=d.attachments.map(a=>structuredClone(a));
+    if(d.upload)attachments.push({...d.upload});
+    if(!text && !attachments.length)return toast('Nhập nội dung trao đổi hoặc đính kèm văn bản');
+    khptm2Exchange.unshift({actor:khptm2Role==='Đơn vị cung cấp thông tin'?khptm2ProviderUnit:khptm2Role,leader:['LĐ Ban KT','LĐTCT'].includes(khptm2Role)?khptm2Role:'',time:new Date().toLocaleString('vi-VN',{hour12:false}),text,attachments,file:d.upload?d.upload.name:'',url:d.upload?d.upload.url:'',action:'Gửi trao đổi'});
+    d.text='';d.attachments=[];d.upload=null;khptm2ExchangeDraftFile='';
+    const ta=document.getElementById('khptm2QuickExchange');if(ta)ta.value='';const file=document.getElementById('khptm2ExchangeFile');if(file)file.value='';
+    renderPending();renderKHPTM2Exchange();toast('Đã gửi nội dung trao đổi kèm văn bản');
+  };
+  khptm2ExchangeFileChanged=function(input){
+    const d=draftExchange(),file=input && input.files && input.files[0];if(d.upload)URL.revokeObjectURL(d.upload.url);
+    d.upload=file?{kind:'upload',name:file.name,mime:file.type,url:URL.createObjectURL(file)}:null;
+    khptm2ExchangeDraftFile=file?file.name:'';renderPending();
+  };
   function savedPreview(kind,code) {
     const r=record(), item=r.requests[code];
     const doc=kind==='request'?item:(r.receipt && r.receipt.code===code && r.receipt.response || item && item.response);
@@ -156,7 +226,7 @@
     if (r.receipt && r.receipt.response && !(r.requests[r.receipt.code] && r.requests[r.receipt.code].response===r.receipt.response)) append('supply',r.receipt.code,r.receipt.response);
   }
   const baseExtended=renderKHPTM2Extended;
-  renderKHPTM2Extended=function(){const result=baseExtended.apply(this,arguments);decorate();return result;};
+  renderKHPTM2Extended=function(){rememberComposer();const result=baseExtended.apply(this,arguments);decorate();mountComposer();return result;};
   // Replace legacy modal entrypoints so all fields and unsaved previews use one source.
   openKHPTM2InfoModal=function(code){open('request',code);};
   saveKHPTM2InfoRequest=save;
@@ -210,7 +280,7 @@
     return baseTransferPreview.apply(this,arguments);
   };
   const baseReset=resetKHPTMBuildFlow;
-  resetKHPTMBuildFlow=function(){records.delete(key());editing=null;return baseReset.apply(this,arguments);};
+  resetKHPTMBuildFlow=function(){const r=record();Object.values(r.drafts||{}).forEach(d=>{if(d.upload)URL.revokeObjectURL(d.upload.url);});records.delete(key());editing=null;composerSession=null;return baseReset.apply(this,arguments);};
   const style=document.createElement('style');style.textContent='#khptm2Extended .kh-info-create{float:right;margin:5px 3px 7px 12px}#khptm2Extended .pm-ext-tabs{clear:both}#khptmPreviewModal{z-index:95}.kh-info-paper{font-family:"Times New Roman",serif;font-size:16px;line-height:1.45;color:#000}.kh-info-paper p{margin:9px 0;text-align:justify}.kh-info-paper table td{color:#000}.kh-info-letterhead td{border:0;width:50%;vertical-align:top;padding:5px 12px;text-align:center}.kh-info-appendix th,.kh-info-appendix td{border:1px solid #000;color:#000;background:white;font-family:"Times New Roman",serif;font-size:14px}.kh-info-appendix td{height:26px}#khptm2InfoModal .modalhead{position:sticky;top:0;z-index:1}#khptm2InfoModal .footer-actions{position:sticky;bottom:-14px;background:white;padding:12px 0;border-top:1px solid #d5e0ea}#khptm2InfoModal label{font-size:14px}@media(max-width:650px){#khptm2Extended .kh-info-create{float:none;display:block;margin-left:auto}.kh-info-letterhead td{padding:3px;font-size:13px}}';document.head.appendChild(style);
-  window.khInfo={open,changeCode,previewDraft,save,savedPreview};
+  window.khInfo={open,changeCode,previewDraft,save,savedPreview,pendingPreview,removePending,renderExchangeInto};
 }());
