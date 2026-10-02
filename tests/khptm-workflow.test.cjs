@@ -229,7 +229,6 @@ for (const type of ['Core di động', 'Vô tuyến', 'BRCĐ', 'CSHT']) {
       W.importSignedDecision(r,'leader',{id:'signed-decision',kind:'uploaded',name:'Quyet_dinh.pdf'});
       W.transfer(r,'leader','clerk');
       assert.deepEqual(recipients(r,'clerk'),['leader','appraisalLead','appraisalCoLead','tctClerk','tct']);
-      if (target !== 'leader') assert.throws(()=>W.transfer(r,'clerk',target),/Ban hành Quyết định/);
       r.issue = {number:'100',date:'2026-10-02',suffix:'VNPT',eoffice:'200'};
       r.phase='ISSUED'; r.decision.issued=true;
       const file=r.decision;
@@ -241,6 +240,45 @@ for (const type of ['Core di động', 'Vô tuyến', 'BRCĐ', 'CSHT']) {
       assert.equal(r.issue.number,'100'); assert.equal(W.canViewAppraisalDocuments(r,target),true);
       assert.equal(W.canSign(r,target),false); assert.equal(W.canIssue(r,target),false);
       assert.equal(W.canEdit(r,target),false); assert.deepEqual(recipients(r,target),[]);
+    }
+  });
+  test(`${type}: Văn thư chọn Xử lý chính theo lời phê, không bắt buộc đã ban hành`, () => {
+    for (const target of ['leader','appraisalLead','appraisalCoLead','tctClerk','tct']) {
+      for (const method of ['digital','external']) {
+        const r = W.create(type,'APPRAISAL'); W.receiveGroupSource(r,'leader');
+        if (method === 'external') W.importSignedDecision(r,'leader',{id:'signed-pdf',kind:'uploaded',name:'Quyet_dinh.pdf'});
+        else {
+          W.transfer(r,'leader','clerk'); W.transfer(r,'clerk','appraisalLead'); W.transfer(r,'appraisalLead','appraisalPM');
+          r.report={id:'report-v1'}; r.decision={id:'draft-v1',kind:'generated',name:'Quyet_dinh.doc'};
+          W.complete(r,'appraisalPM'); W.transfer(r,'appraisalPM','appraisalLead'); W.sign(r,'appraisalLead');
+          W.transfer(r,'appraisalLead','clerk'); W.transfer(r,'clerk','leader'); W.sign(r,'leader');
+        }
+        W.transfer(r,'leader','clerk');
+        const decision = r.decision, report = r.report && {...r.report};
+        assert.deepEqual(recipients(r,'clerk'),['leader','appraisalLead','appraisalCoLead','tctClerk','tct']);
+        W.transfer(r,'clerk',target,{note:'Theo lời phê LĐ TĐ',files:[decision.name]});
+        assert.equal(r.owner,target); assert.equal(r.viewer,target); assert.equal(r.decision,decision);
+        assert.equal(r.signed,true); assert.equal(r.decision.signed,true);
+        assert.equal(r.decision.signatureSource,method); assert.notEqual(r.decision.issued,true);
+        assert.equal(r.ready,true); if (report) assert.deepEqual({...r.report},report);
+        assert.equal(r.receipt.note,'Theo lời phê LĐ TĐ'); assert.deepEqual(Array.from(r.receipt.files),[decision.name]);
+        assert.equal(W.canViewAppraisalDocuments(r,target),true); assert.equal(W.canSign(r,target),false);
+        assert.equal(r.phase,target === 'leader' ? 'CLERK_SIGNED' : 'STEP5_RECEIVED');
+        assert.equal(r.receipt.purpose,target === 'leader' ? 'SIGNED_DECISION' : 'DIRECTED_DECISION');
+        if (target === 'leader') {
+          W.transfer(r,'leader','clerk'); assert.equal(W.canIssue(r,'clerk'),true);
+        }
+      }
+    }
+  });
+  test(`${type}: Văn thư nhận lời phê chưa ký vẫn chọn đủ tuyến xử lý chính`, () => {
+    for (const target of ['leader','appraisalLead','appraisalCoLead','tctClerk','tct']) {
+      const r=W.create(type,'APPRAISAL'); W.receiveGroupSource(r,'leader');
+      W.transfer(r,'leader','clerk',{note:'Lời phê phân công xử lý'});
+      assert.deepEqual(recipients(r,'clerk'),['leader','appraisalLead','appraisalCoLead','tctClerk','tct']);
+      W.transfer(r,'clerk',target,{note:'Chuyển theo lời phê'});
+      assert.equal(r.owner,target); assert.equal(r.viewer,target); assert.equal(r.signed,false);
+      assert.equal(r.receipt.note,'Chuyển theo lời phê');
     }
   });
   test(`${type}: quyền chuyển Bước 5 phụ thuộc nguồn LĐ TĐ và phiên bản được ban hành`, () => {

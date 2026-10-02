@@ -21,7 +21,7 @@
   };
   const transferPurposes = { ...reviewPurposes, TCT_ROUTE: 'Ban hành / luân chuyển hồ sơ TCT', SIGNED_DECISION: 'Ban hành Quyết định TĐ đã ký',
     RECEIVE_TCT_SOURCE: 'Xem VB TCT trình Tập đoàn', APP_DOCUMENTS: 'Xem kết quả thẩm định / trình Quyết định',
-    RETURN_TCT: 'Tiếp nhận hồ sơ TĐ chuyển về TCT', PASS_RESULTS: 'Tiếp nhận Quyết định đã ban hành – Bước 5', APP_ROUTE: 'Xử lý hồ sơ thẩm định TĐ' };
+    RETURN_TCT: 'Tiếp nhận hồ sơ TĐ chuyển về TCT', PASS_RESULTS: 'Tiếp nhận Quyết định đã ban hành – Bước 5', DIRECTED_DECISION: 'Tiếp nhận Quyết định theo lời phê LĐ TĐ', APP_ROUTE: 'Xử lý hồ sơ thẩm định TĐ' };
   const step5Recipients = ['leader','appraisalLead','appraisalCoLead','tctClerk','tct'];
   const step5RoleNames = { appraisalLead: 'LĐ Ban Tập đoàn chủ trì', appraisalCoLead: 'LĐ Ban Tập đoàn phối hợp' };
   function receipt(r, from, to, purpose, details) {
@@ -59,7 +59,7 @@
     if (viewer === 'leader' && r.decisionApproval && r.decisionApproval.receiptId === r.receipt.id &&
         r.decisionApproval.decisionId === r.decision.id && r.decision.signed) return true;
     if (r.receipt.purpose === 'PASS_RESULTS') return !!r.decision.issued && r.receipt.decisionId === r.decision.id;
-    if (r.receipt.purpose === 'SIGNED_DECISION') return r.signed && r.decision.signed && r.receipt.decisionId === r.decision.id;
+    if (['SIGNED_DECISION','DIRECTED_DECISION'].includes(r.receipt.purpose)) return r.signed && r.decision.signed && r.receipt.decisionId === r.decision.id;
     return !!r.report && r.receipt.purpose === 'APP_DOCUMENTS' && r.receipt.reportId === r.report.id && r.receipt.decisionId === r.decision.id;
   }
   function canUploadSignedDecision(r, viewer) {
@@ -155,9 +155,10 @@
       r.receipt.from === 'leader' && r.receipt.purpose === 'SIGNED_DECISION';
   }
   function groupClerkAfterLeader(r, viewer) {
-    return r.mode === 'APPRAISAL' && viewer === 'clerk' && owns(r, viewer) &&
-      ['CLERK_SIGNED','ISSUED'].includes(r.phase) && r.receipt && r.receipt.from === 'leader' &&
-      r.receipt.to === viewer && r.receipt.purpose === 'SIGNED_DECISION' &&
+    if (r.mode !== 'APPRAISAL' || viewer !== 'clerk' || !owns(r, viewer) ||
+        !r.receipt || r.receipt.from !== 'leader' || r.receipt.to !== viewer) return false;
+    if (['DISPATCH','DECISION_ROUTE'].includes(r.phase)) return !r.signed;
+    return ['CLERK_SIGNED','ISSUED'].includes(r.phase) && r.receipt.purpose === 'SIGNED_DECISION' &&
       r.decision && r.decision.signed && r.signed && r.receipt.decisionId === r.decision.id;
   }
   function allowed(r, viewer) {
@@ -165,7 +166,8 @@
     if (r.mode === 'REVIEW') return reviewAllowed(r, viewer);
     if (r.phase === 'STEP5_RECEIVED') return [];
     const u = units(r);
-    if (r.phase === 'ISSUED') return groupClerkAfterLeader(r, viewer) && r.decision.issued ? [...step5Recipients] : [];
+    if (groupClerkAfterLeader(r, viewer)) return r.phase !== 'ISSUED' || r.decision.issued ? [...step5Recipients] : [];
+    if (r.phase === 'ISSUED') return [];
     if (viewer === 'leader') return r.signed ? canViewAppraisalDocuments(r, viewer) ? ['clerk'] : [] : r.phase === 'SIGN_QD' ? [] : ['clerk'];
     if (r.phase === 'SIGN_MAIN') return r.report && r.report.mainSigned ? (r.mode === 'REVIEW' || r.coRequested ? [u.coLead] : [u.clerk]) : [];
     if (r.phase === 'SIGN_CO') return r.report && r.report.coSigned ? [r.mode === 'REVIEW' ? 'tct' : u.clerk] : [];
@@ -175,7 +177,7 @@
     if (viewer === u.pm && r.phase === 'WORK') return r.ready ? [u.lead, ...(r.mode === 'APPRAISAL' ? [u.clerk] : [])] : [u.coLead, ...(r.mode === 'APPRAISAL' ? [u.clerk] : []), 'consultKT', 'consultKH', 'consultTC'];
     if (viewer === u.clerk) {
       if (r.mode === 'REVIEW') return [u.lead, u.coLead, 'originalPM', 'tct'];
-      if (r.phase === 'CLERK_SIGNED') return groupClerkAfterLeader(r, viewer) ? [...step5Recipients] : [];
+      if (r.phase === 'CLERK_SIGNED') return [];
       return [u.lead, u.coLead, 'tct', 'tctClerk', ...(r.phase === 'DISPATCH' && r.receipt?.purpose === 'RECEIVE_TCT_SOURCE' || r.phase === 'DECISION_ROUTE' && r.decision && r.report && r.report.mainSigned && (!r.report.requiresCo || r.report.coSigned) ? ['leader'] : [])];
     }
     return [];
@@ -214,12 +216,12 @@
   function transfer(r, viewer, recipient, details) {
     if (!allowed(r, viewer).includes(recipient)) throw new Error('Người nhận không thuộc tuyến xử lý hiện tại');
     if (r.mode === 'REVIEW') return reviewTransfer(r, viewer, recipient, details);
-    if (groupClerkAfterLeader(r, viewer) && r.phase !== 'ISSUED' && recipient !== 'leader') throw new Error('Ban hành Quyết định trước khi chuyển sang Bước 5');
     if (recipient.startsWith('consult')) return { consultation: true };
     const previousPhase = r.phase, previousPurpose = r.receipt && r.receipt.purpose;
     const signedDecision = r.signed && r.decision && r.decision.signed && canViewAppraisalDocuments(r, viewer);
+    const directedDecision = groupClerkAfterLeader(r, viewer) && signedDecision;
     const u = units(r);
-    if (r.phase === 'ISSUED') { r.phase = 'STEP5_RECEIVED'; r.owner = recipient; }
+    if (r.phase === 'ISSUED' || directedDecision && recipient !== 'leader') { r.phase = 'STEP5_RECEIVED'; r.owner = recipient; }
     else if (r.phase === 'SIGN_MAIN') { r.phase = recipient === u.coLead ? 'SIGN_CO' : 'DECISION_ROUTE'; r.owner = recipient; }
     else if (r.phase === 'SIGN_CO') { r.phase = r.mode === 'REVIEW' ? 'LEGACY' : 'DECISION_ROUTE'; r.owner = recipient; }
     else if (viewer === 'leader') { r.phase = r.signed ? 'CLERK_SIGNED' : r.decision ? 'DECISION_ROUTE' : 'DISPATCH'; r.owner = 'clerk'; }
@@ -230,12 +232,12 @@
     else if (recipient === u.coPM) { r.phase = 'CO_WORK'; r.owner = recipient; r.coAssigned = true; }
     else if (recipient === u.pm) { r.phase = 'WORK'; r.owner = recipient; r.mainAssigned = true; if (viewer === u.coPM) { r.coCompleted = true; r.coAssigned = false; } }
     else { r.owner = recipient; if (recipient === u.clerk && viewer === u.pm) r.phase = r.report && r.report.mainSigned && (!r.report.requiresCo || r.report.coSigned) ? 'DECISION_ROUTE' : 'DISPATCH'; }
-    const purpose = previousPhase === 'ISSUED' ? 'PASS_RESULTS' : recipient === 'tctClerk' ? 'RETURN_TCT' :
+    const purpose = previousPhase === 'ISSUED' ? 'PASS_RESULTS' : directedDecision && recipient !== 'leader' ? 'DIRECTED_DECISION' : recipient === 'tctClerk' ? 'RETURN_TCT' :
       ['leader','clerk'].includes(recipient) && signedDecision && (viewer === 'leader' || previousPurpose === 'SIGNED_DECISION') ? 'SIGNED_DECISION' :
       ['leader','clerk'].includes(recipient) && r.report && r.decision && (viewer.startsWith('appraisal') || previousPurpose === 'APP_DOCUMENTS') ? 'APP_DOCUMENTS' :
       ['leader','clerk'].includes(recipient) && previousPurpose === 'RECEIVE_TCT_SOURCE' ? 'RECEIVE_TCT_SOURCE' : 'APP_ROUTE';
     receipt(r, viewer, recipient, purpose, details);
-    if (purpose === 'PASS_RESULTS') r.receipt.toName = step5RoleNames[recipient] || roles[recipient];
+    if (purpose === 'PASS_RESULTS' || directedDecision) r.receipt.toName = step5RoleNames[recipient] || roles[recipient];
     r.viewer = r.owner; return { consultation: false };
   }
   root.KHWorkflow = { roles, units, reviewPurposes, transferPurposes, step5Recipients, step5RoleNames, groupClerkAfterLeader, reviewTask, receiveReview, receiveTCTClerk, receiveGroupSource, canViewAppraisalDocuments, canUploadSignedDecision, importSignedDecision, tctClerkRecipients, canForwardTCT, canViewReviewReport, create, owns, canEdit, canPrepare, canComplete, canSign, canIssue, allowed, sign, complete, rejectReport, returnSource, transfer };
@@ -259,8 +261,8 @@
   const status = r => r.mode === 'APPRAISAL' && r.phase !== 'STEP5_RECEIVED' && r.signed && r.owner === 'leader' ? 'Quyết định đã ký – chờ chuyển Văn thư' : r.mode === 'REVIEW' && r.phase === 'SIGN_MAIN' ? r.report && r.report.mainSigned ? 'Báo cáo đã ký chính thức – chờ chuyển' : 'Chờ ký chính thức báo cáo' : r.mode === 'REVIEW' && r.phase === 'SIGN_CO' ? r.report && r.report.coInitialled ? 'Báo cáo đã ký nháy – chờ trình' : 'Chờ ký nháy báo cáo' : ({ ASSIGN: 'Chờ phân công', WORK: r.ready ? 'Đã tổng hợp – chờ trình ký báo cáo' : 'Đang ' + (r.mode === 'REVIEW' ? 'rà soát' : 'thẩm định'),
     REVIEW_SUBMIT: 'Báo cáo đã ký hoàn tất – chờ trình LĐ TCT', CO_ASSIGN: 'Chờ phân công phối hợp', CO_WORK: 'Đang xử lý phối hợp', SIGN_MAIN: 'Chờ ký báo cáo chủ trì', SIGN_CO: 'Chờ ký báo cáo phối hợp',
     INBOX: 'Chờ LĐ TĐ cho ý kiến', DISPATCH: 'Chờ Văn thư luân chuyển', DECISION_ROUTE: 'Báo cáo đã ký – chờ trình Quyết định', SIGN_QD: 'Chờ LĐ TĐ ký Quyết định',
-    CLERK_SIGNED: 'Chờ ban hành', ISSUED: 'Đã ban hành – chờ chuyển', STEP5_RECEIVED: 'Đã nhận Quyết định đã ban hành', DONE: 'Đã chuyển kết quả về NET', LEGACY: 'Đang trình tại TCT' })[r.phase];
-  const flowLabel = r => r.phase === 'STEP5_RECEIVED' ? 'Bước 5 · Tiếp nhận Quyết định đã ban hành' : r.mode === 'REVIEW' ? 'Rà soát tại TCT' : 'Bước 4 · Thẩm định, phê duyệt TĐ';
+    CLERK_SIGNED: 'Chờ ban hành', ISSUED: 'Đã ban hành – chờ chuyển', STEP5_RECEIVED: r.decision?.issued ? 'Đã nhận Quyết định đã ban hành' : 'Đã nhận Quyết định theo lời phê LĐ TĐ', DONE: 'Đã chuyển kết quả về NET', LEGACY: 'Đang trình tại TCT' })[r.phase];
+  const flowLabel = r => r.phase === 'STEP5_RECEIVED' ? 'Bước 5 · Tiếp nhận Quyết định Tập đoàn' : r.mode === 'REVIEW' ? 'Rà soát tại TCT' : 'Bước 4 · Thẩm định, phê duyệt TĐ';
   const roleName = (r, key) => r.phase === 'STEP5_RECEIVED' ? W.step5RoleNames[key] || roles[key] : roles[key];
   function sourcePaper(type, issue, signed) {
     return '<div style="text-align:center"><b>TỔNG CÔNG TY HẠ TẦNG MẠNG - VNPT NET</b></div><p>Số: ' + esc(issue.number || '...') + '/VNPT Net-' + esc(issue.suffix || 'KT') + '</p>' +
@@ -589,21 +591,7 @@
     if (!modalSnapshot) return;
     const modal = document.getElementById('transferModal'); modal.classList.remove('kh4-route'); modal.querySelector('.route-opinion-summary').innerHTML = modalSnapshot.summary;
     modalSnapshot.rows.forEach(x => { x.row.innerHTML = x.html; x.row.style.display = x.display; });
-    document.getElementById('kh4ExtraRouteFile')?.remove(); document.getElementById('kh4RouteNotice')?.remove(); document.getElementById('kh4Step5RouteNotice')?.remove(); modalSnapshot = null;
-  }
-  function showGroupClerkRouteState() {
-    const r = current();
-    if (!modalSnapshot || modalSnapshot.kind !== 'workflow' || !r || !W.groupClerkAfterLeader(r, r.viewer) || r.phase === 'ISSUED') return;
-    let notice = document.getElementById('kh4Step5RouteNotice');
-    if (!notice) {
-      notice = document.createElement('div'); notice.id = 'kh4Step5RouteNotice'; notice.className = 'mini'; notice.setAttribute('role','status'); notice.style.marginBottom = '8px';
-      document.getElementById('routeRecipientRows').closest('table').before(notice);
-    }
-    notice.textContent = 'Ban hành Quyết định trước khi chuyển sang Bước 5. Có thể chuyển lại LĐ Tập đoàn để xử lý.';
-    W.step5Recipients.filter(key => key !== 'leader').forEach(key => {
-      const radio = document.querySelector('#routeRecipientRows input[name="routeMain"][value="khw_' + key + '"]');
-      if (radio) { radio.disabled = true; radio.checked = false; radio.closest('tr').title = notice.textContent; }
-    });
+    document.getElementById('kh4ExtraRouteFile')?.remove(); document.getElementById('kh4RouteNotice')?.remove(); modalSnapshot = null;
   }
   function showTCTRouteState() {
     if (!modalSnapshot || modalSnapshot.kind !== 'tctClerk' || pendingTransferAction !== 'kh4Transfer') return;
@@ -852,7 +840,7 @@
   const previousRenderRecipients = renderRouteRecipients;
   renderRouteRecipients = function () {
     const result = previousRenderRecipients.apply(this, arguments);
-    showTCTRouteState(); showGroupClerkRouteState(); return result;
+    showTCTRouteState(); return result;
   };
   const previousHide = hideTransferModal;
   hideTransferModal = function () { restoreModal(); return previousHide.apply(this, arguments); };
