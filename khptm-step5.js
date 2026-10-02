@@ -536,79 +536,304 @@
     notify('Mở tệp đính kèm: ' + att.name);
   }
 
+  function ensureSharedRecipients(r) {
+    if (typeof routeRecipients === 'undefined') return;
+    const extras = [
+      { id:'kh5pm', name:'PM Ban KT', title:'Đầu mối lựa chọn PAKT, CN và quy mô', unit:'Ban KT' },
+      { id:'kh5leader', name:'LĐ Ban KT', title:'Lãnh đạo Ban Kỹ thuật', unit:'Ban KT' }
+    ];
+    (PROVIDERS[r.type] || []).forEach((unit, idx) => {
+      extras.push({
+        id:'kh5provider'+idx,
+        name:unit,
+        title:'Đơn vị cung cấp thông tin',
+        unit:unit.indexOf('Ban KTM') === 0 ? 'VNPT Net' : 'Đơn vị liên quan'
+      });
+    });
+    extras.forEach(item => {
+      const old = routeRecipients.find(x => x.id === item.id);
+      if (old) {
+        old.name = item.name;
+        old.title = item.title;
+        old.unit = item.unit;
+      } else {
+        routeRecipients.push(item);
+      }
+    });
+  }
+
+  function providerRouteId(r, unit) {
+    const idx = (PROVIDERS[r.type] || []).indexOf(unit);
+    return idx >= 0 ? 'kh5provider' + idx : '';
+  }
+
+  function resetSharedFileRows() {
+    ['routeSignFileRow','routeIssueFileRow'].forEach(id => {
+      const row = document.getElementById(id);
+      if (!row) return;
+      row.style.display = '';
+      const check = row.querySelector('.route-check');
+      if (check) check.checked = true;
+    });
+  }
+
+  function setSharedRouteFiles(r) {
+    resetSharedFileRows();
+    const sign = document.querySelector('#routeSignFileRow .route-file-name');
+    const issue = document.querySelector('#routeIssueFileRow .route-file-name');
+    const note = document.getElementById('transferNote');
+    const req = activeRequest(r) || [...r.requests].reverse().find(x => x.status === 'DRAFT');
+    const listName = 'Danh_muc_PAKT_CN_quy_mo_' + ({'Core di động':'Core','Vô tuyến':'Vo_tuyen','BRCĐ':'BRCD'})[r.type] + '_' + r.year + '.xlsx';
+
+    if (viewer === 'pm') {
+      const draftReq = [...r.requests].reverse().find(x => x.status === 'DRAFT');
+      if (sign) {
+        sign.textContent = draftReq
+          ? draftReq.name
+          : r.generated
+            ? r.generated.name
+            : listName;
+      }
+      if (issue) issue.textContent = r.generated ? r.generated.name : listName;
+      if (note) note.value = draftReq && r.generated
+        ? 'Chọn đơn vị cung cấp thông tin để gửi yêu cầu, hoặc chọn LĐ Ban KT để trình văn bản đã hoàn thiện.'
+        : draftReq
+          ? 'Chuyển Văn bản yêu cầu cung cấp thông tin tới đúng đơn vị được yêu cầu.'
+          : 'Trình văn bản Đề xuất lựa chọn PAKT, CN và quy mô tới LĐ Ban KT xem xét/ký.';
+      return;
+    }
+
+    if (viewer === 'provider') {
+      if (sign) sign.textContent = req && req.response ? req.response.name : 'VB_cung_cap_thong_tin.docx';
+      if (issue) issue.textContent = req ? req.name : 'SOP1-TB-01B_Yeu_cau_so_lieu.docx';
+      if (note) note.value = 'Đã cung cấp thông tin; chuyển lại PM Ban KT tiếp tục hoàn thiện Đề xuất lựa chọn PAKT, CN và quy mô.';
+      return;
+    }
+
+    if (viewer === 'leader') {
+      if (sign) sign.textContent = r.generated ? r.generated.name : 'To_trinh_Bao_cao_de_xuat_PAKT_CN_quy_mo.docx';
+      if (issue) issue.textContent = listName;
+      if (note) note.value = 'LĐ Ban KT đã ký văn bản; chuyển kết quả đã ký về PM Ban KT.';
+    }
+  }
+
   function openTransfer() {
     const r = record();
     if (!owns(r, viewer)) return notify('Hồ sơ hiện không thuộc người đang xem');
-    const options = [];
-    const draftReq = [...r.requests].reverse().find(x => x.status === 'DRAFT');
-    if (viewer === 'pm' && isEditable(r) && draftReq) options.push({key:'provider',label:'Đơn vị cung cấp thông tin',purpose:'Yêu cầu cung cấp số liệu hiện trạng'});
-    if (viewer === 'pm' && isEditable(r) && r.generated) options.push({key:'leader',label:'LĐ Ban KT',purpose:'Trình duyệt Đề xuất PAKT, CN và quy mô'});
-    if (viewer === 'provider') {
-      const req = activeRequest(r);
-      if (req && req.response && req.response.status === 'DRAFT') options.push({key:'pm',label:'PM Ban KT',purpose:'Phản hồi/cung cấp thông tin'});
-    }
-    if (viewer === 'leader' && r.leaderSigned) options.push({key:'pmApproved',label:'PM Ban KT',purpose:'Chuyển kết quả đã ký'});
-    if (!options.length) return notify('Chưa có tuyến chuyển hợp lệ ở trạng thái hiện tại');
+    if (
+      typeof routeRecipients === 'undefined' ||
+      typeof renderRouteRecipients !== 'function' ||
+      typeof switchRouteTab !== 'function'
+    ) return notify('Chưa tải được popup Chuyển dùng chung');
 
-    const modal = document.getElementById('kh5TransferModal');
-    document.getElementById('kh5TransferChoices').innerHTML = options.map((x,i) =>
-      '<label class="kh5-transfer-choice"><input type="radio" name="kh5TransferTarget" value="' + x.key + '"' + (i===0?' checked':'') + '> <b>' + safe(x.label) + '</b><span>' + safe(x.purpose) + '</span></label>'
-    ).join('');
-    document.getElementById('kh5TransferNote').value = '';
-    modal.classList.add('show');
+    ensureSharedRecipients(r);
+    const allowed = [];
+    let main = '';
+
+    if (viewer === 'pm' && isEditable(r)) {
+      const draftReq = [...r.requests].reverse().find(x => x.status === 'DRAFT');
+      if (draftReq) {
+        const providerId = providerRouteId(r, draftReq.unit);
+        if (providerId) allowed.push(providerId);
+      }
+      if (r.generated) allowed.push('kh5leader');
+    } else if (viewer === 'provider') {
+      const req = activeRequest(r);
+      if (req && req.response && req.response.status === 'DRAFT') {
+        allowed.push('kh5pm');
+        main = 'PM Ban KT';
+      }
+    } else if (viewer === 'leader' && r.leaderSigned) {
+      allowed.push('kh5pm');
+      main = 'PM Ban KT';
+    }
+
+    if (!allowed.length) return notify('Chưa có tuyến chuyển hợp lệ ở trạng thái hiện tại');
+
+    pendingTransferAction = 'kh5Route';
+    currentTransferCfg = { main, co:[], send:[], allowed };
+    const search = document.getElementById('routeReceiverSearch');
+    if (search) search.value = '';
+    renderRouteRecipients();
+    switchRouteTab('files');
+    setSharedRouteFiles(r);
+    document.getElementById('transferModal')?.classList.add('show');
   }
 
   function closeTransfer() {
-    const modal = document.getElementById('kh5TransferModal');
-    if (modal) modal.classList.remove('show');
+    if (typeof hideTransferModal === 'function') hideTransferModal();
+    else document.getElementById('transferModal')?.classList.remove('show');
   }
 
-  function confirmTransfer() {
+  function confirmSharedTransfer() {
     const r = record();
-    const selected = document.querySelector('input[name="kh5TransferTarget"]:checked');
-    if (!selected) return notify('Chọn người nhận');
-    const note = (document.getElementById('kh5TransferNote').value || '').trim();
-    const key = selected.value;
+    if (String(pendingTransferAction || '') !== 'kh5Route') return;
+    if (typeof selectedRouteRecipients !== 'function') return notify('Chưa tải được thông tin người nhận');
+    const selected = selectedRouteRecipients();
+    if (!selected.main) {
+      if (typeof switchRouteTab === 'function') switchRouteTab('receiver');
+      return notify('Chọn 01 người xử lý chính');
+    }
 
-    if (key === 'provider') {
-      const req = [...r.requests].reverse().find(x => x.status === 'DRAFT');
-      if (!req) return notify('Chưa có VB yêu cầu cung cấp thông tin');
-      req.status = 'SENT';
-      r.activeRequestId = req.id;
-      r.status = 'INFO_WAIT';
-      r.owner = 'provider';
-      r.receipt = { from:'pm', fromName:ROLE_NAMES.pm, to:'provider', toName:ROLE_NAMES.provider, purpose:'INFO_REQUEST', requestId:req.id, note, time:now() };
-      log(r, ROLE_NAMES.pm, 'Chuyển ' + req.name + ' đến ' + req.unit + ' - nhiệm vụ cung cấp thông tin');
-      viewer = 'provider';
-    } else if (key === 'pm') {
+    const note = (document.getElementById('transferNote')?.value || '').trim();
+    const targetId = selected.main.id;
+
+    if (viewer === 'pm' && isEditable(r)) {
+      const draftReq = [...r.requests].reverse().find(x => x.status === 'DRAFT');
+      const expectedProviderId = draftReq ? providerRouteId(r, draftReq.unit) : '';
+
+      if (draftReq && targetId === expectedProviderId) {
+        draftReq.status = 'SENT';
+        r.activeRequestId = draftReq.id;
+        r.status = 'INFO_WAIT';
+        r.owner = 'provider';
+        r.receipt = {
+          from:'pm',
+          fromName:ROLE_NAMES.pm,
+          to:'provider',
+          toName:draftReq.unit,
+          purpose:'INFO_REQUEST',
+          requestId:draftReq.id,
+          note,
+          time:now()
+        };
+        log(r, ROLE_NAMES.pm, 'Chuyển ' + draftReq.name + ' đến ' + draftReq.unit + ' - nhiệm vụ cung cấp thông tin');
+        viewer = 'provider';
+      } else if (targetId === 'kh5leader') {
+        captureFields();
+        if (!r.generated) {
+          if (typeof switchRouteTab === 'function') switchRouteTab('files');
+          return notify('Cần xem/sinh Tờ trình hoặc Báo cáo trước khi trình LĐ Ban KT');
+        }
+        r.status = 'LEADER';
+        r.owner = 'leader';
+        r.receipt = {
+          from:'pm',
+          fromName:ROLE_NAMES.pm,
+          to:'leader',
+          toName:ROLE_NAMES.leader,
+          purpose:'SUBMIT_APPROVAL',
+          documentId:r.generated.id,
+          note,
+          time:now()
+        };
+        log(r, ROLE_NAMES.pm, 'Trình ' + documentTitle(r.generated.kind) + ' đến LĐ Ban KT');
+        viewer = 'leader';
+      } else {
+        if (typeof switchRouteTab === 'function') switchRouteTab('receiver');
+        return notify('Chọn đúng đơn vị cung cấp thông tin hoặc LĐ Ban KT');
+      }
+    } else if (
+      viewer === 'provider' &&
+      owns(r,'provider') &&
+      r.receipt &&
+      r.receipt.purpose === 'INFO_REQUEST' &&
+      targetId === 'kh5pm'
+    ) {
       const req = activeRequest(r);
-      if (!req || !req.response || req.response.status !== 'DRAFT') return notify('Chưa có VB cung cấp thông tin');
+      if (!req || !req.response || req.response.status !== 'DRAFT') {
+        if (typeof switchRouteTab === 'function') switchRouteTab('files');
+        return notify('Chưa có VB cung cấp thông tin');
+      }
       req.response.status = 'SENT';
       req.status = 'RESPONDED';
       r.status = 'DRAFT';
       r.owner = 'pm';
-      r.receipt = { from:'provider', fromName:ROLE_NAMES.provider, to:'pm', toName:ROLE_NAMES.pm, purpose:'INFO_RESPONSE', requestId:req.id, note, time:now() };
-      log(r, ROLE_NAMES.provider, 'Chuyển VB cung cấp thông tin về PM Ban KT');
+      r.receipt = {
+        from:'provider',
+        fromName:req.unit || ROLE_NAMES.provider,
+        to:'pm',
+        toName:ROLE_NAMES.pm,
+        purpose:'INFO_RESPONSE',
+        requestId:req.id,
+        note,
+        time:now()
+      };
+      log(r, req.unit || ROLE_NAMES.provider, 'Chuyển VB cung cấp thông tin về PM Ban KT');
       viewer = 'pm';
-    } else if (key === 'leader') {
-      captureFields();
-      if (!r.generated) return notify('Cần sinh Tờ trình/Báo cáo trước khi trình LĐ Ban KT');
-      r.status = 'LEADER';
-      r.owner = 'leader';
-      r.receipt = { from:'pm', fromName:ROLE_NAMES.pm, to:'leader', toName:ROLE_NAMES.leader, purpose:'SUBMIT_APPROVAL', documentId:r.generated.id, note, time:now() };
-      log(r, ROLE_NAMES.pm, 'Trình ' + documentTitle(r.generated.kind) + ' đến LĐ Ban KT');
-      viewer = 'leader';
-    } else if (key === 'pmApproved') {
-      if (!r.leaderSigned || !r.generated) return notify('Văn bản chưa được LĐ Ban KT ký');
+    } else if (
+      viewer === 'leader' &&
+      owns(r,'leader') &&
+      r.receipt &&
+      r.receipt.purpose === 'SUBMIT_APPROVAL' &&
+      targetId === 'kh5pm'
+    ) {
+      if (!r.leaderSigned || !r.generated) {
+        if (typeof switchRouteTab === 'function') switchRouteTab('files');
+        return notify('Văn bản chưa được LĐ Ban KT ký');
+      }
       r.status = 'DONE';
       r.owner = 'pm';
-      r.receipt = { from:'leader', fromName:ROLE_NAMES.leader, to:'pm', toName:ROLE_NAMES.pm, purpose:'APPROVED', documentId:r.generated.id, note, time:now() };
+      r.receipt = {
+        from:'leader',
+        fromName:ROLE_NAMES.leader,
+        to:'pm',
+        toName:ROLE_NAMES.pm,
+        purpose:'APPROVED',
+        documentId:r.generated.id,
+        note,
+        time:now()
+      };
       log(r, ROLE_NAMES.leader, 'Chuyển kết quả đã ký về PM Ban KT - hoàn thành Bước 5');
       viewer = 'pm';
+    } else {
+      if (typeof switchRouteTab === 'function') switchRouteTab('receiver');
+      return notify('Người nhận không phù hợp với nguồn chuyển/nhiệm vụ hiện tại');
     }
+
+    pendingTransferAction = '';
     closeTransfer();
     render();
-    notify('Đã chuyển hồ sơ tới ' + ROLE_NAMES[r.owner]);
+    window.scrollTo({top:0,behavior:'smooth'});
+    notify('Đã chuyển hồ sơ tới ' + (r.receipt?.toName || ROLE_NAMES[r.owner]));
+  }
+
+  function openSharedTransferPreview(title) {
+    const r = record();
+    const modal = document.getElementById('transferPreviewModal');
+    const titleEl = document.getElementById('transferPreviewTitle');
+    const paper = modal?.querySelector('.route-preview-paper');
+    if (!modal || !titleEl || !paper) return;
+
+    const isFirst = String(title || '').indexOf('Tờ trình') === 0;
+    const req = activeRequest(r) || [...r.requests].reverse().find(x => x.status === 'DRAFT');
+    let previewTitle = '';
+    let html = '';
+
+    if (viewer === 'pm') {
+      const draftReq = [...r.requests].reverse().find(x => x.status === 'DRAFT');
+      if (isFirst && draftReq) {
+        previewTitle = draftReq.name;
+        html = requestPaper(draftReq.data);
+      } else if (r.generated) {
+        previewTitle = r.generated.name;
+        html = generatedHtml(r);
+      } else {
+        previewTitle = 'Danh_muc_PAKT_CN_quy_mo.xlsx';
+        html = '<h2>FILE DANH MỤC</h2><p class="kh5-survey-text">' + SURVEY + '</p>';
+      }
+    } else if (viewer === 'provider') {
+      if (isFirst && req && req.response) {
+        previewTitle = req.response.name;
+        html = responsePaper(req.response.data, req);
+      } else if (req) {
+        previewTitle = req.name;
+        html = requestPaper(req.data);
+      }
+    } else if (viewer === 'leader') {
+      if (isFirst && r.generated) {
+        previewTitle = r.generated.name;
+        html = generatedHtml(r);
+      } else {
+        const source = sourceById(r.basisId);
+        previewTitle = 'QD_phe_duyet_KHPTM.pdf';
+        html = source?.html || fallbackDecisionHtml(source || {type:r.type,year:r.year});
+      }
+    }
+
+    titleEl.textContent = previewTitle || 'Tài liệu chuyển đi';
+    paper.innerHTML = html || '<p>Chưa có nội dung preview.</p>';
+    modal.classList.add('show');
   }
 
   function signLeader() {
@@ -980,10 +1205,6 @@
     infoModal.id = 'kh5InfoModal'; infoModal.className = 'modal';
     infoModal.innerHTML = '<div class="modalbox" style="width:min(980px,95vw)"><div class="modalhead"><b id="kh5InfoTitle"></b><button onclick="kh5.closeInfo()" style="background:transparent;border:0;color:white;font-size:20px">×</button></div><div id="kh5InfoBody" class="modalbody"></div></div>';
 
-    const transferModal = document.createElement('div');
-    transferModal.id = 'kh5TransferModal'; transferModal.className = 'modal';
-    transferModal.innerHTML = '<div class="modalbox" style="width:min(820px,94vw)"><div class="modalhead"><b>Chuyển hồ sơ</b><button onclick="kh5.closeTransfer()" style="background:transparent;border:0;color:white;font-size:20px">×</button></div><div class="modalbody"><div id="kh5TransferChoices"></div><div style="margin-top:12px"><label>Nội dung chuyển</label><textarea id="kh5TransferNote"></textarea></div><div class="footer-actions"><button onclick="kh5.closeTransfer()">Đóng</button><button class="primary" onclick="kh5.confirmTransfer()">Chuyển</button></div></div></div>';
-
     const returnModal = document.createElement('div');
     returnModal.id = 'kh5ReturnModal'; returnModal.className = 'modal';
     returnModal.innerHTML = '<div class="modalbox" style="width:min(720px,94vw)"><div class="modalhead"><b>Trả lại PM Ban KT</b><button onclick="kh5.closeReturn()" style="background:transparent;border:0;color:white;font-size:20px">×</button></div><div class="modalbody"><label>Nội dung yêu cầu chỉnh sửa</label><textarea id="kh5ReturnReason"></textarea><div class="footer-actions"><button onclick="kh5.closeReturn()">Đóng</button><button class="primary" onclick="kh5.confirmReturn()">Trả lại</button></div></div></div>';
@@ -991,7 +1212,6 @@
     shell.appendChild(list);
     shell.appendChild(process);
     document.body.appendChild(infoModal);
-    document.body.appendChild(transferModal);
     document.body.appendChild(returnModal);
     renderList();
   }
@@ -1000,7 +1220,7 @@
   window.kh5 = {
     openType, setRole, fieldChanged, setBasis, setDocType, saveDraft, generate, viewGenerated, viewDocumentType, viewDecision,
     openInfo, infoFieldChanged, previewInfo, saveInfo, closeInfo,
-    openTransfer, closeTransfer, confirmTransfer, signLeader, openReturn, closeReturn, confirmReturn,
+    openTransfer, closeTransfer, confirmSharedTransfer, openSharedTransferPreview, signLeader, openReturn, closeReturn, confirmReturn,
     extTab, sendExchange, exchangeFileChanged, previewExchangeAttachment, previewStaged,
     viewRequest, viewResponse, addFile
   };
