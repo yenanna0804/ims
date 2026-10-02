@@ -751,15 +751,18 @@
     const host = document.getElementById('kh5Extended');
     if (!host) return;
     const r = record();
-    let createButton = '';
-    if (isEditable(r)) createButton = '<button class="kh-info-create" onclick="kh5.openInfo(\'request\')">Tạo VB yêu cầu cung cấp thông tin</button>';
-    else if (viewer === 'provider' && owns(r,'provider') && r.receipt && r.receipt.purpose === 'INFO_REQUEST') createButton = '<button class="kh-info-create" onclick="kh5.openInfo(\'response\')">Tạo VB cung cấp thông tin</button>';
+    const defaultTab = viewer === 'leader' || viewer === 'provider' ? 'exchange' : 'files';
 
-    host.innerHTML = '<div class="pm-ims-extended"><span class="pm-ext-caption">Thông tin mở rộng</span>' + createButton +
-      '<div class="pm-ext-tabs"><div class="pm-ext-tab active" data-kh5-tab="files" onclick="kh5.extTab(\'files\',this)">Tài liệu đính kèm</div><div class="pm-ext-tab" data-kh5-tab="route" onclick="kh5.extTab(\'route\',this)">Lịch sử luân chuyển</div><div class="pm-ext-tab" data-kh5-tab="exchange" onclick="kh5.extTab(\'exchange\',this)">Lịch sử trao đổi</div></div>' +
-      '<div id="kh5ExtFiles" class="pm-ext-pane active">' + extendedFilesHtml(r) + '</div>' +
-      '<div id="kh5ExtRoute" class="pm-ext-pane">' + renderHistory(r) + '</div>' +
-      '<div id="kh5ExtExchange" class="pm-ext-pane">' + exchangeTable(r) + composerHtml(r) + '</div></div>';
+    host.innerHTML = '<div class="pm-ims-extended"><span class="pm-ext-caption">Thông tin mở rộng</span>' +
+      '<div class="pm-ext-tabs">' +
+        '<div class="pm-ext-tab '+(defaultTab==='files'?'active':'')+'" data-kh5-tab="files" onclick="kh5.extTab(\'files\',this)">Tài liệu đính kèm</div>' +
+        '<div class="pm-ext-tab" data-kh5-tab="route" onclick="kh5.extTab(\'route\',this)">Lịch sử luân chuyển</div>' +
+        '<div class="pm-ext-tab '+(defaultTab==='exchange'?'active':'')+'" data-kh5-tab="exchange" onclick="kh5.extTab(\'exchange\',this)">Lịch sử trao đổi</div>' +
+      '</div>' +
+      '<div id="kh5ExtFiles" class="pm-ext-pane '+(defaultTab==='files'?'active':'')+'">' + extendedFilesHtml(r) + '</div>' +
+      '<div id="kh5ExtRoute" class="pm-ext-pane"><div class="history-list">' + renderHistory(r) + '</div></div>' +
+      '<div id="kh5ExtExchange" class="pm-ext-pane '+(defaultTab==='exchange'?'active':'')+'">' + exchangeTable(r) + composerHtml(r) + '</div>' +
+    '</div>';
   }
 
   function openExtTab(name) {
@@ -842,6 +845,7 @@
         if (r.generated) html += '<button class="primary" onclick="kh5.viewGenerated()">Xem ' + (r.generated.kind==='report'?'báo cáo':'tờ trình') + '</button>';
       } else {
         html += '<button onclick="kh5.saveDraft()">Lưu nháp</button>';
+        html += '<button onclick="kh5.openInfo(\'request\')">Tạo VB yêu cầu cung cấp thông tin</button>';
         if (r.generated) html += '<button onclick="kh5.viewGenerated()">Xem ' + (r.generated.kind==='report'?'báo cáo':'tờ trình') + '</button>';
         html += '<button class="khptm-emphasis" onclick="kh5.openTransfer()">Chuyển</button>';
       }
@@ -849,6 +853,7 @@
     if (viewer === 'provider' && owns(r,'provider')) {
       const req = activeRequest(r);
       if (req) html += '<button onclick="kh5.viewRequest(\''+req.id+'\')">Xem VB yêu cầu</button>';
+      html += '<button onclick="kh5.openInfo(\'response\')">Tạo VB cung cấp thông tin</button>';
       if (req && req.response) html += '<button onclick="kh5.viewResponse(\''+req.id+'\')">Xem VB cung cấp thông tin</button>';
       html += '<button class="khptm-emphasis" onclick="kh5.openTransfer()">Chuyển</button>';
     }
