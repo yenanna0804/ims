@@ -891,8 +891,25 @@
     records.delete(khptm2DeviceType); banDrafts.delete(khptm2DeviceType); exchangeAttachment = null;
     const result = previousReset.apply(this, arguments); refreshList(); return result;
   };
+  function getStep5Sources() {
+    return types.map(type => {
+      const r = records.get(type);
+      if (!r || !r.decision || !r.decision.signed) return null;
+      return {
+        id: r.id + '-APPROVED',
+        type: r.type,
+        year: r.year,
+        title: 'KHPTM ' + r.type + ' năm ' + r.year,
+        decisionNumber: numberText(r.issue),
+        decisionDate: r.issue.date || '',
+        issued: !!r.decision.issued,
+        html: r.decision.html || paper(r, r.decision),
+        fileName: r.decision.name || ('Quyet_dinh_phe_duyet_KHPTM_' + tag(r.type) + '_' + r.year + '.pdf')
+      };
+    }).filter(Boolean);
+  }
   window.kh4 = { open, render, setRole, generate, upload, approve, sign, issue, updateIssue, takeNumber, transfer,
     extTab, sendExchange, exchangeFileChanged, previewSource, previewSubmission, previewFile, previewDocument,
-    saveBusiness, reportInput, selectDocument, returnSource, rejectReport, selectBanDocument, signBan };
+    saveBusiness, reportInput, selectDocument, returnSource, rejectReport, selectBanDocument, signBan, getStep5Sources };
   mount();
 }());
