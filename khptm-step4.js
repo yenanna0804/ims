@@ -248,13 +248,13 @@
   if (typeof document === 'undefined') return;
   const W = window.KHWorkflow, roles = W.roles;
   const types = ['Core di động', 'Vô tuyến', 'BRCĐ', 'CSHT'];
-  const records = new Map(), listBadges = new WeakMap(), banDrafts = new Map();
+  const records = new Map(), approvedSamples = new Map(), listBadges = new WeakMap(), banDrafts = new Map();
   const step4 = 'KHPTM_TD';
   const newKeys = Object.keys(roles).filter(k => !['tct', 'tctClerk', 'originalPM', 'consultKT', 'consultKH', 'consultTC'].includes(k));
   let currentType = types[0], nextNumber = 100, exchangeAttachment = null, modalSnapshot = null;
   const now = () => new Date().toLocaleString('vi-VN', { hour12: false });
   const tag = type => ({ 'Core di động': 'Core', 'Vô tuyến': 'Vo_tuyen', 'BRCĐ': 'BRCD', 'CSHT': 'CSHT' })[type];
-  const current = () => records.get(currentType);
+  const current = () => records.get(currentType) || approvedSamples.get(currentType);
   const log = (r, text, actor) => r.history.unshift({ actor: actor || roles[r.viewer], text, time: now() });
   const numberText = issue => issue.number ? issue.number + '/QĐ-' + (issue.suffix || 'VNPT') : '.../QĐ-VNPT';
   const isEditor = r => W.canPrepare(r, r.viewer);
@@ -327,7 +327,8 @@
       return '<div style="text-align:center"><b>' + (file.reportMode === 'REVIEW' ? 'TỔNG CÔNG TY HẠ TẦNG MẠNG - VNPT NET' : 'ĐƠN VỊ THẨM ĐỊNH TẬP ĐOÀN') + '</b></div><h2>' + title + '</h2><h3>Hồ sơ KHPTM ' + esc(r.type) + ' năm ' + r.year + '</h3><p style="white-space:pre-wrap">' + esc(file.content || 'Cần khảo sát khách hàng để chốt nội dung/field chi tiết của báo cáo.') + '</p><div class="sign"><b>LÃNH ĐẠO ĐƠN VỊ CHỦ TRÌ</b><br>' + (file.mainSigned ? file.reportMode === 'REVIEW' ? '(Đã ký chính thức – demo)' : '(Đã ký số – demo)' : '(Chờ ký)') + (file.reportMode === 'REVIEW' || file.requiresCo ? '<p><b>LÃNH ĐẠO ĐƠN VỊ PHỐI HỢP</b><br>' + (file.reportMode === 'REVIEW' ? file.coInitialled ? '(Đã ký nháy – demo)' : file.requiresInitial ? '(Chờ ký nháy)' : '(Ký nháy khi chuyển phối hợp)' : file.coSigned ? '(Đã ký số – demo)' : '(Chờ ký)') + '</p>' : '') + '</div>';
     }
     const title = r.type === 'Vô tuyến' ? 'Phê duyệt và ban hành Kế hoạch đầu tư phát triển mạng' : 'Phê duyệt Kế hoạch phát triển mạng';
-    return '<div style="text-align:center"><b>TẬP ĐOÀN BƯU CHÍNH VIỄN THÔNG VIỆT NAM</b></div><p>Số: ' + esc(numberText(r.issue)) + '</p><p style="text-align:right">Ngày ban hành: ' + esc(formatDateVN(r.issue.date) || '...') + '</p><h2>QUYẾT ĐỊNH</h2><h3>' + title + ' ' + esc(r.type) + ' năm ' + r.year + '</h3><p>Cần khảo sát khách hàng để chốt nội dung và biểu mẫu chi tiết của quyết định.</p><div class="sign"><b>LÃNH ĐẠO TẬP ĐOÀN</b><br><br><br>' + (file && file.signed ? '(Đã ký số – demo)' : '(Chờ ký)') + '</div>';
+    const content = r.demoPlan ? '<p><i>Văn bản mẫu phục vụ demo.</i></p><p>Điều 1. Phê duyệt Kế hoạch phát triển mạng ' + esc(r.type) + ' năm ' + r.year + ' theo hồ sơ VNPT Net trình số ' + esc(r.sourceIssue.number) + '/VNPT Net-KT ngày ' + formatDateVN(r.sourceIssue.date) + '.</p><p>Phạm vi: ' + esc(r.demoPlan.location) + '.</p><p>Mục tiêu: ' + esc(r.demoPlan.goal) + '</p><p>Điều 2. Giao VNPT Net tổ chức lựa chọn phương án kỹ thuật, công nghệ và tính toán quy mô trên cơ sở kế hoạch đã phê duyệt.</p>' : '<p>Cần khảo sát khách hàng để chốt nội dung và biểu mẫu chi tiết của quyết định.</p>';
+    return '<div style="text-align:center"><b>TẬP ĐOÀN BƯU CHÍNH VIỄN THÔNG VIỆT NAM</b></div><p>Số: ' + esc(numberText(r.issue)) + '</p><p style="text-align:right">Ngày ban hành: ' + esc(formatDateVN(r.issue.date) || '...') + '</p><h2>QUYẾT ĐỊNH</h2><h3>' + title + ' ' + esc(r.type) + ' năm ' + r.year + '</h3>' + content + '<div class="sign"><b>LÃNH ĐẠO TẬP ĐOÀN</b><br><br><br>' + (file && file.signed ? '(Đã ký số – demo)' : '(Chờ ký)') + '</div>';
   }
   function refreshGenerated(r, file) {
     if (!file || file.kind !== 'generated') return;
@@ -699,7 +700,15 @@
     });
   }
   function refreshList() {
+    const body = document.querySelector('#khptm-build-list tbody');
+    body.querySelectorAll('[data-kh4-sample]').forEach(row => row.remove());
+    approvedSamples.forEach(r => {
+      const row = document.createElement('tr'); row.dataset.kh4Sample = r.id;
+      row.innerHTML = '<td class="center">' + (body.children.length + 1) + '</td><td class="center">' + r.year + '</td><td>' + esc(r.type) + '</td><td><span class="khptm-list-title" onclick="kh4.openApprovedPlan(\'' + r.id + '\')">KHPTM ' + esc(r.type) + ' năm ' + r.year + ' – đã phê duyệt (mẫu)</span><div class="mini">QĐ ' + esc(numberText(r.issue)) + ' · Căn cứ đề xuất lựa chọn PAKT, CN và quy mô</div></td><td>812/VNPT Net-KT</td><td class="center">' + formatDateVN(r.issue.date) + '</td><td><span class="badge bgreen">Đã phê duyệt, ban hành</span></td><td class="center">' + button('Mở', "kh4.openApprovedPlan('" + r.id + "')", true, 'small') + '</td>';
+      body.appendChild(row);
+    });
     document.querySelectorAll('#khptm-build-list tbody tr').forEach(row => {
+      if (row.dataset.kh4Sample) return;
       const link = row.querySelector('.khptm-list-title'); if (!link || (link.getAttribute('onclick') || '').includes("'COORD'")) return;
       const r = records.get(row.cells[2].textContent.trim());
       if (r && r.phase !== 'LEGACY') { if (!listBadges.has(row)) listBadges.set(row, row.cells[6].innerHTML); row.cells[6].innerHTML = '<span class="badge bblue">' + esc(flowLabel(r) + ' · ' + status(r)) + '</span>'; }
@@ -740,6 +749,31 @@
     if (key && availableKeys(r).includes(key)) r.viewer = key;
     document.querySelectorAll('.nav .item').forEach(el => el.classList.remove('active')); document.getElementById('nav-khptm').classList.add('active');
     showPage('khptm-build-process'); render();
+  }
+  function openApprovedPlan(id) {
+    const r = approvedSamples.get(id) || [...records.values()].find(record => record.id === id && record.decision?.signed && record.decision?.issued); if (!r) return;
+    currentType = approvedSamples.has(id) ? id : r.type; r.viewer = r.owner;
+    document.querySelectorAll('.nav .item').forEach(el => el.classList.remove('active')); document.getElementById('nav-khptm').classList.add('active');
+    showPage('khptm-build-process'); render();
+  }
+  function seedApprovedPlans() {
+    (window.KHPTMDemoData?.plans || []).forEach(sample => {
+      const history = [{ actor: roles.tctClerk, text: 'VNPT Net trình KHPTM theo VB GNV 812/VNPT Net-KT; VB trình số ' + sample.sourceNumber + '/VNPT Net-KT.', time: formatDateVN(sample.sourceDate) + ' 09:00:00' }];
+      const r = makeRecord(sample.type, 'APPRAISAL', { issue: { number: sample.sourceNumber, suffix: 'KT', date: sample.sourceDate, issued: true }, history, exchange: [] });
+      r.id = sample.id; r.year = sample.year; r.demoPlan = sample;
+      r.sourceContext.issue = { ...r.sourceIssue, issued: true }; r.sourceContext.banSigned = r.sourceContext.tctSigned = true;
+      r.sourceHtml = sourcePaper(r.type, r.sourceIssue, true).replace('<p>Cần khảo sát khách hàng để chốt nội dung/field chi tiết của văn bản.</p>', '<p>Thực hiện VB GNV 812/VNPT Net-KT, VNPT Net trình KHPTM với phạm vi ' + esc(sample.location) + '.</p><p>' + esc(sample.goal) + '</p>');
+      W.receiveGroupSource(r, 'leader'); W.transfer(r, 'leader', 'clerk'); W.transfer(r, 'clerk', 'appraisalLead'); W.transfer(r, 'appraisalLead', 'appraisalPM');
+      createFile(r, 'report', { kind: 'generated', name: 'Bao_cao_tham_dinh_' + sample.id + '.doc', content: 'Dữ liệu mẫu: kết quả thẩm định thống nhất phạm vi ' + sample.location + '. ' + sample.goal });
+      createFile(r, 'decision', { kind: 'generated', name: 'QD_phe_duyet_' + sample.id + '.doc' });
+      W.complete(r, 'appraisalPM'); W.transfer(r, 'appraisalPM', 'appraisalLead'); W.sign(r, 'appraisalLead'); W.transfer(r, 'appraisalLead', 'clerk'); W.transfer(r, 'clerk', 'leader'); W.sign(r, 'leader'); W.transfer(r, 'leader', 'clerk');
+      if (!W.canIssue(r, 'clerk')) throw Error('Hồ sơ mẫu chưa đủ điều kiện ban hành');
+      r.issue = { number: sample.number, suffix: 'VNPT', date: sample.approvalDate, eoffice: 'MAU-' + sample.number }; r.phase = 'ISSUED'; r.decision.issued = true;
+      W.transfer(r, 'clerk', 'tctClerk', { note: 'Tiếp nhận QĐ đã ban hành; giao Ban KT lập đề xuất lựa chọn PAKT, CN và tính toán quy mô.', files: [r.decision.name, r.report.name] });
+      r.receipt.time = sample.approvalDate + 'T10:00:00+07:00';
+      r.history.unshift({ actor: roles.clerk, text: 'Ban hành QĐ ' + numberText(r.issue) + '; chuyển Văn thư TCT tiếp nhận làm căn cứ bước 5.', time: formatDateVN(sample.approvalDate) + ' 10:00:00' }, { actor: roles.leader, text: 'Ký Quyết định phê duyệt KHPTM ' + sample.type + ' năm ' + sample.year + '.', time: formatDateVN(sample.approvalDate) + ' 09:00:00' });
+      r.files.forEach(file => { refreshGenerated(r, file); file.time = formatDateVN(sample.approvalDate) + ' 09:00:00'; }); approvedSamples.set(r.id, r);
+    });
   }
   function receive(type, incoming) {
     const old = records.get(type), r = makeRecord(type, 'APPRAISAL', incoming);
@@ -847,7 +881,7 @@
   hideTransferModal = function () { restoreModal(); return previousHide.apply(this, arguments); };
   const previousRender = renderKHPTMBuild;
   renderKHPTMBuild = function () {
-    if (khptm2Step === step4) { currentType = khptm2DeviceType; render(); return; }
+    if (khptm2Step === step4) { if (!current()?.demoPlan || current().type !== khptm2DeviceType) currentType = khptm2DeviceType; render(); return; }
     document.getElementById('kh4Panel').classList.remove('active'); document.getElementById('kh4Context').style.display = 'none';
     const result = previousRender.apply(this, arguments); addRoleOptions(); currentType = khptm2DeviceType;
     const isCoord = isKHPTMPairType() && khptmPairRecordRole === 'COORD';
@@ -857,6 +891,7 @@
   const previousSwitchRole = switchKHPTMBuildRole;
   switchKHPTMBuildRole = function (role) {
     const type = khptm2DeviceType;
+    if (khptm2Step === step4 && current()?.demoPlan && !availableKeys(current()).some(k => (k === 'tctClerk' ? 'Văn thư' : roles[k]) === role)) return toast('Hồ sơ mẫu đã phê duyệt; mở hồ sơ đang xử lý để thực hiện nghiệp vụ trước đó');
     if (khptm2Step === step4 && current()?.phase === 'STEP5_RECEIVED') {
       const key = availableKeys(current()).find(k => (k === 'tctClerk' ? 'Văn thư' : roles[k]) === role);
       if (key) return setRole(key);
@@ -887,18 +922,20 @@
   openKHPTMBuildModule = function () { const result = previousOpenList.apply(this, arguments); refreshList(); return result; };
   const previousReset = resetKHPTMBuildFlow;
   resetKHPTMBuildFlow = function () {
+    if (khptm2Step === step4 && current()?.demoPlan) return toast('Hồ sơ mẫu đã phê duyệt; mở hồ sơ đang xử lý để Reset luồng');
     const r = records.get(khptm2DeviceType); if (khptm2Step === step4) restoreContext(r);
     if (r) r.files.forEach(file => { if (file.url) URL.revokeObjectURL(file.url); });
     records.delete(khptm2DeviceType); banDrafts.delete(khptm2DeviceType); exchangeAttachment = null;
     const result = previousReset.apply(this, arguments); refreshList(); return result;
   };
-  window.kh4 = { open, render, setRole, generate, upload, approve, sign, issue, updateIssue, takeNumber, transfer,
+  window.kh4 = { open, openApprovedPlan, render, setRole, generate, upload, approve, sign, issue, updateIssue, takeNumber, transfer,
     extTab, sendExchange, exchangeFileChanged, previewSource, previewSubmission, previewFile, previewDocument,
     saveBusiness, reportInput, selectDocument, returnSource, rejectReport, selectBanDocument, signBan,
-    approvedPlans: () => [...records.values()].filter(r => r.mode === 'APPRAISAL' &&
+    approvedPlans: () => [...approvedSamples.values(), ...records.values()].filter(r => r.mode === 'APPRAISAL' &&
       ['Core di động', 'Vô tuyến', 'BRCĐ'].includes(r.type) && r.signed && r.decision?.signed && r.decision?.issued)
       .map(r => ({ id: r.id, type: r.type, year: r.year, title: 'KHPTM ' + r.type + ' năm ' + r.year,
         number: numberText(r.issue), date: r.issue.date,
-        decision: { name: r.decision.name, kind: r.decision.kind, url: r.decision.url, html: r.decision.html, signed: true, issued: true } })) };
+        decision: { name: r.decision.name, kind: r.decision.kind, url: r.decision.url, html: r.decision.html, actor: r.decision.actor, time: r.decision.time, signed: true, issued: true } })) };
   mount();
+  seedApprovedPlans();
 }());

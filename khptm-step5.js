@@ -269,7 +269,7 @@
     else { const a = document.createElement('a'); a.href = file.url; a.download = file.name; a.click(); }
   }
   function actions(r) {
-    let html = button('Danh sách', 'kh5.list()') + button('Xem QĐ phê duyệt KHPTM', 'kh5.previewBasis()') + button('Xem Tờ trình', 'kh5.previewSubmission()');
+    let html = button('Danh sách', 'kh5.list()') + button('Xem hồ sơ KHPTM', "kh4.openApprovedPlan('" + r.basis.id + "')") + button('Xem QĐ phê duyệt KHPTM', 'kh5.previewBasis()') + button('Xem Tờ trình', 'kh5.previewSubmission()');
     if (r.viewer === 'pm') html += button('Lưu đề xuất', 'kh5.save()', edit(r), 'primary');
     if (['lead', 'tct'].includes(r.viewer)) html += button('Ký số Tờ trình', 'kh5.sign()', W.canSign(r, r.viewer));
     if (r.viewer === 'tctClerk') html += button('Lấy số', 'kh5.takeNumber()', W.canIssue(r, r.viewer)) + button('Ban hành', 'kh5.issue()', W.canIssue(r, r.viewer), 'primary');
@@ -366,6 +366,36 @@
       hideTransferModal(); render(); toast('Đã chuyển đề xuất');
     } catch (e) { toast(e.message); }
   };
+  function seedProposals() {
+    (window.KHPTMDemoData?.plans || []).forEach(sample => {
+      const basis = kh4.approvedPlans().find(plan => plan.id === sample.id); if (!basis) return;
+      const r = W.create(basis, 'PAKT-MAU-' + sample.id);
+      const data = { ...r.data, ...Object.fromEntries(W.fields.filter(([key]) => sample[key] !== undefined).map(([key]) => [key, sample[key]])),
+        deadline: '2026-10-15', investment: 'Mở rộng hệ thống hiện có', schedule: 'Chuẩn bị hồ sơ Quý IV/2026; trang bị và đưa vào khai thác Quý II–III/2027.',
+        recommendation: 'Đề nghị xem xét phương án và quy mô nêu trên để làm cơ sở triển khai các bước tiếp theo theo KHPTM đã phê duyệt.' };
+      W.save(r, 'pm', data, sample.rows.map(row => ({ ...W.emptyRow(), ...row })));
+      const sampleTime = hour => formatDateVN(sample.date) + ' ' + hour + ':00:00';
+      const addHistory = (actor, text, hour) => r.history.unshift({ actor: W.roles[actor], text, time: sampleTime(hour), receipt: { ...r.receipt, files: r.receipt.files.slice() } });
+      addHistory('pm', 'Tiếp nhận căn cứ ' + basis.title + ' · QĐ ' + basis.number + ' ngày ' + formatDateVN(basis.date) + '; lập đề xuất (mẫu).', '08');
+      W.installPair(r, 'pm', [buildFile(r, 'report'), buildFile(r, 'catalog')]); r.files.forEach(file => { file.time = sampleTime('09'); });
+      addHistory('pm', 'Tạo Báo cáo đề xuất và file danh mục từ cùng dữ liệu tính toán quy mô.', '09');
+      if (sample.stage !== 'PREPARE') {
+        ensureSubmission(r); r.submission.time = sampleTime('09');
+        W.transfer(r, 'pm', 'lead', { note: 'Kính trình xem xét phương án kỹ thuật, công nghệ và quy mô theo QĐ ' + basis.number + '.', files: [r.submission.id, ...r.files.map(file => file.id)] });
+        r.receipt.time = sample.date + 'T10:00:00+07:00'; addHistory('pm', 'Chuyển LĐ Ban KT xem xét Tờ trình, Báo cáo đề xuất và file danh mục.', '10');
+        r.exchange.unshift({ actor: W.roles.pm, text: r.receipt.note, time: sampleTime('10'), attachments: [] });
+      }
+      if (sample.stage === 'ISSUE') {
+        W.sign(r, 'lead'); refreshSubmission(r); addHistory('lead', 'Ký Tờ trình lựa chọn PAKT, CN và quy mô (demo).', '11');
+        W.transfer(r, 'lead', 'tctClerk', { note: 'Thống nhất nội dung đề xuất. Văn thư nhập số và ban hành Tờ trình đã ký cùng bộ tài liệu.', files: [r.submission.id, ...r.files.map(file => file.id)] });
+        r.receipt.time = sample.date + 'T13:00:00+07:00'; addHistory('lead', 'Chuyển Văn thư TCT ban hành Tờ trình đã ký.', '13');
+        r.exchange.unshift({ actor: W.roles.lead, text: r.receipt.note, time: sampleTime('13'), attachments: [] });
+        r.issue = { number: '', suffix: 'VNPT Net-KT', date: '2026-10-02', eoffice: '' };
+      }
+      records.set(r.id, r);
+    });
+  }
+  seedProposals();
   window.kh5 = { list, filterList, createScreen, chooseBasis, create, open, render, setRole, save, addRow, removeRow, generate, previewBasis, previewSubmission, previewFile, previewArchive,
     extTab, addUploadRow, saveUploads, exchangeFileChanged, sendExchange, sign, takeNumber, issue, transfer };
 }());
