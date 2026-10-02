@@ -10,7 +10,7 @@ function prepared(type='Core di động'){
  W.installPair(r,'pm',['report','catalog'].map(docType=>({id:docType,docType,revision:r.revision,generated:true})));
  r.submission={id:'submission',revision:r.revision,signatures:[],issued:false};return r;
 }
-const detail=r=>({files:[r.submission.id,...r.files.map(f=>f.id)],note:'Xem xét đề xuất',co:['khdt'],view:['related']});
+const detail=r=>({files:[r.submission.id,...r.files.map(f=>f.id)],note:'Xem xét đề xuất',co:[],view:['khdt']});
 test('Căn cứ chỉ nhận KHPTM đã phê duyệt và ban hành của 3 nhóm chung',()=>{
  for(const invalid of [null,basis('CSHT'),{...basis('Vô tuyến'),decision:{signed:false,issued:true}},{...basis('BRCĐ'),decision:{signed:true,issued:false}}]) assert.throws(()=>W.create(invalid,'1'));
 });
@@ -27,7 +27,7 @@ for(const type of W.types){
  });
  test(type+': chuyển đủ bộ tài liệu và ghi nhận nguồn, mục đích, người nhận',()=>{
   const r=prepared(type);assert.throws(()=>W.transfer(r,'pm','lead',{...detail(r),files:['submission','report']}));
-  W.transfer(r,'pm','lead',detail(r));assert.equal(r.receipt.from,'pm');assert.equal(r.receipt.to,'lead');assert.equal(r.receipt.purpose,'REVIEW');assert.equal(r.receipt.revision,r.revision);assert.ok(r.receipt.time);assert.deepEqual(r.receipt.co,['khdt']);assert.equal(W.canEdit(r,'pm'),false);
+  W.transfer(r,'pm','lead',detail(r));assert.equal(r.receipt.from,'pm');assert.equal(r.receipt.to,'lead');assert.equal(r.receipt.purpose,'REVIEW');assert.equal(r.receipt.revision,r.revision);assert.ok(r.receipt.time);assert.deepEqual(r.receipt.view,['khdt']);assert.equal(W.receiptFor(r,'khdt').purpose,'INFORMATION');assert.equal(W.canEdit(r,'pm'),false);
  });
  test(type+': ký theo tài liệu được nhận, không ký lại khi chuyển vòng',()=>{
   const r=prepared(type);W.transfer(r,'pm','lead',detail(r));
@@ -39,7 +39,7 @@ for(const type of W.types){
   const r=prepared(type);W.transfer(r,'pm','lead',detail(r));W.sign(r,'lead');
   assert.throws(()=>W.transfer(r,'lead','pm',{...detail(r),note:''}));W.transfer(r,'lead','pm',{...detail(r),note:'Sửa quy mô'});
   assert.equal(W.save(r,'pm',r.data,r.rows),false);assert.deepEqual(r.submission.signatures,['lead']);
-  W.save(r,'pm',{...r.data,result:'20 thiết bị'},[{...r.rows[0],quantity:'20'}]);assert.equal(W.pairReady(r),false);assert.equal(r.submission,null);assert.deepEqual(r.archive[0].submission.signatures,['lead']);assert.equal(r.archive[0].rows[0].quantity,'10');assert.deepEqual(W.allowed(r,'pm'),[]);
+  W.save(r,'pm',{...r.data,result:'20 thiết bị'},[{...r.rows[0],quantity:'20'}]);assert.equal(W.pairReady(r),false);assert.equal(r.submission,null);assert.deepEqual(r.archive[0].submission.signatures,['lead']);assert.equal(r.archive[0].rows[0].quantity,'10');assert.ok(!W.allowed(r,'pm').includes('lead'));
  });
  test(type+': Văn thư nhận Tờ trình đã ký mới nhập số, ban hành',()=>{
   const r=prepared(type);W.transfer(r,'pm','lead',detail(r));assert.ok(!W.allowed(r,'lead').includes('tctClerk'));W.sign(r,'lead');W.transfer(r,'lead','tctClerk',detail(r));assert.equal(W.canIssue(r,'tctClerk'),true);
