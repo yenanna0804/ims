@@ -219,8 +219,40 @@ for (const type of ['Core di động', 'Vô tuyến', 'BRCĐ', 'CSHT']) {
     assert.equal(W.canSign(a,'leader'),false);
     W.transfer(a,'leader','clerk'); assert.equal(W.canIssue(a,'clerk'),true);
     a.receipt.from='appraisalLead'; assert.equal(W.canIssue(a,'clerk'),false);
-    a.receipt.from='leader'; a.phase='ISSUED';
-    assert.deepEqual(recipients(a,'clerk'),['originalPM','tctClerk']);
-    W.transfer(a,'clerk','originalPM'); assert.equal(a.phase,'DONE');
+    a.receipt.from='leader'; a.phase='ISSUED'; a.decision.issued=true;
+    assert.deepEqual(recipients(a,'clerk'),['leader','appraisalLead','appraisalCoLead','tctClerk','tct']);
+    W.transfer(a,'clerk','tct'); assert.equal(a.phase,'STEP5_RECEIVED');
   });
+  test(`${type}: Văn thư nhận từ LĐ TĐ chuyển đủ tuyến và mở đúng người nhận ở Bước 5`, () => {
+    for (const target of ['leader','appraisalLead','appraisalCoLead','tctClerk','tct']) {
+      const r = W.create(type,'APPRAISAL'); W.receiveGroupSource(r,'leader');
+      W.importSignedDecision(r,'leader',{id:'signed-decision',kind:'uploaded',name:'Quyet_dinh.pdf'});
+      W.transfer(r,'leader','clerk');
+      assert.deepEqual(recipients(r,'clerk'),['leader','appraisalLead','appraisalCoLead','tctClerk','tct']);
+      if (target !== 'leader') assert.throws(()=>W.transfer(r,'clerk',target),/Ban hành Quyết định/);
+      r.issue = {number:'100',date:'2026-10-02',suffix:'VNPT',eoffice:'200'};
+      r.phase='ISSUED'; r.decision.issued=true;
+      const file=r.decision;
+      W.transfer(r,'clerk',target,{note:'Chuyển Quyết định triển khai Bước 5',files:['Quyet_dinh.pdf']});
+      assert.equal(r.phase,'STEP5_RECEIVED'); assert.equal(r.owner,target); assert.equal(r.viewer,target);
+      assert.equal(r.receipt.from,'clerk'); assert.equal(r.receipt.to,target);
+      assert.equal(r.receipt.purpose,'PASS_RESULTS'); assert.equal(r.receipt.decisionId,'signed-decision');
+      assert.equal(r.decision,file); assert.equal(r.decision.signed,true); assert.equal(r.decision.issued,true);
+      assert.equal(r.issue.number,'100'); assert.equal(W.canViewAppraisalDocuments(r,target),true);
+      assert.equal(W.canSign(r,target),false); assert.equal(W.canIssue(r,target),false);
+      assert.equal(W.canEdit(r,target),false); assert.deepEqual(recipients(r,target),[]);
+    }
+  });
+  test(`${type}: quyền chuyển Bước 5 phụ thuộc nguồn LĐ TĐ và phiên bản được ban hành`, () => {
+    const r=W.create(type,'APPRAISAL'); W.receiveGroupSource(r,'leader');
+    W.importSignedDecision(r,'leader',{id:'signed-v1',kind:'uploaded'}); W.transfer(r,'leader','clerk');
+    r.phase='ISSUED'; r.decision.issued=true;
+    r.receipt.from='appraisalLead'; assert.deepEqual(recipients(r,'clerk'),[]);
+    assert.throws(()=>W.transfer(r,'clerk','tct'));
+    r.receipt.from='leader'; r.decision.id='signed-v2'; assert.deepEqual(recipients(r,'clerk'),[]);
+    r.decision.id='signed-v1'; r.decision.issued=false; assert.deepEqual(recipients(r,'clerk'),[]);
+    r.decision.issued=true; assert.deepEqual(recipients(r,'tctClerk'),[]);
+    assert.deepEqual(recipients(r,'leader'),[]);
+  });
+
 }
