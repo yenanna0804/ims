@@ -144,6 +144,9 @@
   const current = () => records.get(currentId) || creationDraft, own = r => W.owns(r, r.viewer), edit = r => W.canEdit(r, r.viewer);
   const button = (label, action, enabled = true, cls = '') => '<button class="' + cls + '" onclick="' + action + '"' + (enabled ? '' : ' disabled') + '>' + label + '</button>';
   const section = (title, body) => '<div class="section"><h3>' + title + '</h3><div class="body">' + body + '</div></div>';
+  const moduleTitle = 'Lựa chọn PAKT, CN, tính toán quy mô';
+  const header = (title, actions, suffix = '', detail = false) => '<div class="crumb">QUẢN LÝ KHPTM &gt; ' + moduleTitle + (suffix ? ' &gt; ' + esc(suffix) : '') + '</div><div class="titlebar' + (detail ? ' kh5-detail' : '') + '"><h1>' + esc(title) + '</h1><div class="buttons">' + actions + '</div></div>';
+  const listFilters = { year: '', type: '', name: '', status: '' };
   const note = text => '<div class="mini" style="padding:10px">' + esc(text) + '</div>';
   function log(r, text, actor) { r.history.unshift({ actor: actor || W.roles[r.viewer], text, time: now(), receipt: { ...r.receipt, files: r.receipt.files.slice() } }); }
   let extTemplate;
@@ -155,8 +158,18 @@
   document.querySelector('#nav-khptm .submenu').appendChild(nav);
   function list() {
     showPage('kh5Page'); currentId = ''; creationDraft = null;
-    page.innerHTML = '<div class="crumb">QUẢN LÝ KHPTM &gt; Lựa chọn PAKT, CN, tính toán quy mô</div><div class="toolbar">' + button('Tạo đề xuất', 'kh5.createScreen()', true, 'primary') + '</div>' + section('Danh sách đề xuất lựa chọn PAKT, CN và quy mô',
-      '<div style="overflow:auto"><table><thead><tr><th>STT</th><th>Tên đề xuất</th><th>Loại thiết bị</th><th>Căn cứ KHPTM</th><th>Người xử lý chính</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>' + ([...records.values()].map((r, i) => '<tr><td>' + (i + 1) + '</td><td>' + esc(r.data.name) + '</td><td>' + esc(r.basis.type) + '</td><td>' + esc(r.basis.title) + '</td><td>' + esc(W.roles[r.owner]) + '</td><td>' + state(r) + '</td><td>' + button('Xem', "kh5.open('" + r.id + "')") + '</td></tr>').join('') || '<tr><td colspan="7">Chưa có đề xuất.</td></tr>') + '</tbody></table></div>');
+    const years = [...new Set([...kh4.approvedPlans(), ...[...records.values()].map(r => r.basis)].map(p => String(p.year)))].sort().reverse();
+    const statuses = ['Đang lập / sửa đề xuất', 'Chờ xem xét đề xuất', 'Đã ký – chờ chuyển', 'Chờ ban hành', 'Đã ban hành', 'Đã chuyển kết quả'];
+    const filterSelect = (key, label, options) => '<div><label for="kh5Filter_' + key + '">' + label + '</label><select id="kh5Filter_' + key + '" onchange="kh5.filterList()"><option value="">Tất cả</option>' + options.map(value => '<option value="' + esc(value) + '"' + (value === listFilters[key] ? ' selected' : '') + '>' + esc(value) + '</option>').join('') + '</select></div>';
+    page.innerHTML = header(moduleTitle, button('+ Tạo mới', 'kh5.createScreen()', true, 'primary') + button('Quay lại', 'goHome()')) +
+      section('Tìm kiếm, tra cứu', '<div class="grid">' + filterSelect('year', 'Năm kế hoạch', years) + filterSelect('type', 'Loại thiết bị', ['Core di động', 'Vô tuyến', 'BRCĐ']) + '<div><label for="kh5Filter_name">Tên đề xuất</label><input id="kh5Filter_name" placeholder="Nhập tên đề xuất..." value="' + esc(listFilters.name) + '" oninput="kh5.filterList()"></div>' + filterSelect('status', 'Trạng thái', statuses) + '</div>') +
+      section('Danh sách hồ sơ', '<div style="overflow:auto"><table><thead><tr><th>STT</th><th>Tên đề xuất</th><th>Loại thiết bị</th><th>Căn cứ KHPTM</th><th>Người xử lý chính</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody id="kh5ListRows"></tbody></table></div>');
+    filterList();
+  }
+  function filterList() {
+    Object.keys(listFilters).forEach(key => { listFilters[key] = document.getElementById('kh5Filter_' + key).value; });
+    const filtered = [...records.values()].filter(r => (!listFilters.year || String(r.basis.year) === listFilters.year) && (!listFilters.type || r.basis.type === listFilters.type) && (!listFilters.name || r.data.name.toLocaleLowerCase('vi-VN').includes(listFilters.name.trim().toLocaleLowerCase('vi-VN'))) && (!listFilters.status || state(r) === listFilters.status));
+    document.getElementById('kh5ListRows').innerHTML = filtered.map((r, i) => '<tr><td>' + (i + 1) + '</td><td>' + esc(r.data.name) + '</td><td>' + esc(r.basis.type) + '</td><td>' + esc(r.basis.title) + '</td><td>' + esc(W.roles[r.owner]) + '</td><td>' + esc(state(r)) + '</td><td>' + button('Xem', "kh5.open('" + r.id + "')") + '</td></tr>').join('') || '<tr><td colspan="7">' + (records.size ? 'Không có hồ sơ phù hợp với điều kiện tìm kiếm.' : 'Chưa có đề xuất.') + '</td></tr>';
   }
   function state(r) { return r.receipt.purpose === 'PREPARE' ? 'Đang lập / sửa đề xuất' : r.receipt.purpose === 'ISSUE' ? r.submission?.issued ? 'Đã ban hành' : 'Chờ ban hành' : r.receipt.purpose === 'RESULT' ? 'Đã chuyển kết quả' : r.submission?.signatures.includes(r.owner) ? 'Đã ký – chờ chuyển' : 'Chờ xem xét đề xuất'; }
   function basisPicker(selected) {
@@ -168,7 +181,7 @@
     creationBasis = basis?.id || ''; currentId = ''; showPage('kh5Page');
     creationDraft = { data: Object.fromEntries(W.fields.map(([key]) => [key, ''])), rows: [W.emptyRow()], owner: 'pm', viewer: 'pm', receipt: { to: 'pm', purpose: 'PREPARE' } };
     Object.assign(creationDraft.data, { unit: 'Ban KT', date: new Date().toISOString().slice(0, 10), name: basis ? 'Đề xuất lựa chọn PAKT, CN và quy mô ' + basis.type + ' năm ' + basis.year : 'Đề xuất lựa chọn PAKT, CN và quy mô' });
-    page.innerHTML = '<div class="crumb">QUẢN LÝ KHPTM &gt; Tạo đề xuất lựa chọn PAKT, CN và quy mô</div><div class="titlebar"><h1>Tạo đề xuất lựa chọn PAKT, CN và quy mô</h1></div><div class="toolbar">' + button('Quay lại', 'kh5.list()') + button('Lưu đề xuất', 'kh5.create()', true, 'primary') + '</div>' + section('Căn cứ lập đề xuất', basisPicker(creationBasis)) + form(creationDraft);
+    page.innerHTML = header('Tạo đề xuất lựa chọn PAKT, CN và quy mô', button('Lưu đề xuất', 'kh5.create()', true, 'primary') + button('Quay lại', 'kh5.list()'), 'Tạo mới') + section('Căn cứ lập đề xuất', basisPicker(creationBasis)) + form(creationDraft);
   }
   function chooseBasis(id) {
     creationBasis = id; document.getElementById('kh5BasisAction').innerHTML = id ? button('Xem QĐ phê duyệt KHPTM', 'kh5.previewBasis()') : '';
@@ -256,7 +269,7 @@
     else { const a = document.createElement('a'); a.href = file.url; a.download = file.name; a.click(); }
   }
   function actions(r) {
-    let html = button('Quay lại', 'kh5.list()') + button('Xem QĐ phê duyệt KHPTM', 'kh5.previewBasis()') + button('Xem Tờ trình', 'kh5.previewSubmission()');
+    let html = button('Danh sách', 'kh5.list()') + button('Xem QĐ phê duyệt KHPTM', 'kh5.previewBasis()') + button('Xem Tờ trình', 'kh5.previewSubmission()');
     if (r.viewer === 'pm') html += button('Lưu đề xuất', 'kh5.save()', edit(r), 'primary');
     if (['lead', 'tct'].includes(r.viewer)) html += button('Ký số Tờ trình', 'kh5.sign()', W.canSign(r, r.viewer));
     if (r.viewer === 'tctClerk') html += button('Lấy số', 'kh5.takeNumber()', W.canIssue(r, r.viewer)) + button('Ban hành', 'kh5.issue()', W.canIssue(r, r.viewer), 'primary');
@@ -264,7 +277,7 @@
   }
   function render() {
     const r = current(); if (!r) return; showPage('kh5Page');
-    page.innerHTML = '<div class="crumb">QUẢN LÝ KHPTM &gt; Đề xuất lựa chọn PAKT, CN và quy mô</div><div class="toolbar"><label>Vai trò test</label><select id="kh5Role" onchange="kh5.setRole(this.value)">' + Object.entries(W.roles).map(([key, label]) => '<option value="' + key + '"' + (key === r.viewer ? ' selected' : '') + '>' + label + '</option>').join('') + '</select><span class="mini">' + state(r) + '</span></div><div class="toolbar">' + actions(r) + '</div>' +
+    page.innerHTML = header(moduleTitle + ' - ' + r.basis.type, actions(r), 'Chi tiết xử lý', true) + '<div class="khptm-rolebar"><label for="kh5Role">Vai trò test</label><select id="kh5Role" onchange="kh5.setRole(this.value)">' + Object.entries(W.roles).map(([key, label]) => '<option value="' + key + '"' + (key === r.viewer ? ' selected' : '') + '>' + label + '</option>').join('') + '</select><span class="right-note">' + esc(state(r)) + '</span></div>' +
       section('Thông tin hồ sơ', '<div class="grid" style="grid-template-columns:repeat(2,minmax(0,1fr))"><div><label>Căn cứ KHPTM đã phê duyệt</label><div>' + esc(r.basis.title + ' · QĐ ' + r.basis.number) + '</div></div><div><label>Người xử lý chính</label><div>' + esc(W.roles[r.owner]) + '</div></div><div><label>Người chuyển trước</label><div>' + esc(W.roles[r.receipt.from] || 'PM khởi tạo') + '</div></div><div><label>Nội dung xử lý</label><div style="white-space:pre-wrap">' + esc(r.receipt.note || 'Lập đề xuất lựa chọn PAKT, CN và tính toán quy mô') + '</div></div></div>') +
       (r.viewer === 'pm' ? form(r) : section('Preview văn bản', '<div class="khptm-doc-preview"><div class="khptm-paper">' + (r.submission?.html || paper(r, 'submission')) + '</div></div>')) +
       (r.viewer === 'tctClerk' ? section('Thông tin ban hành', '<div class="grid" style="grid-template-columns:repeat(4,minmax(0,1fr))">' + [['number', 'Số văn bản'], ['date', 'Ngày ban hành'], ['suffix', 'Ký hiệu'], ['eoffice', 'Số eOffice']].map(([key, label]) => '<div><label>' + label + '</label><input id="kh5Issue_' + key + '" type="' + (key === 'date' ? 'date' : 'text') + '" value="' + esc(r.issue[key] || '') + '"' + (!W.canIssue(r, r.viewer) ? ' disabled' : '') + '></div>').join('') + '</div>') : '') + '<div id="kh5Extended"></div>';
@@ -353,6 +366,6 @@
       hideTransferModal(); render(); toast('Đã chuyển đề xuất');
     } catch (e) { toast(e.message); }
   };
-  window.kh5 = { list, createScreen, chooseBasis, create, open, render, setRole, save, addRow, removeRow, generate, previewBasis, previewSubmission, previewFile, previewArchive,
+  window.kh5 = { list, filterList, createScreen, chooseBasis, create, open, render, setRole, save, addRow, removeRow, generate, previewBasis, previewSubmission, previewFile, previewArchive,
     extTab, addUploadRow, saveUploads, exchangeFileChanged, sendExchange, sign, takeNumber, issue, transfer };
 }());
