@@ -48,8 +48,20 @@
       parameters: 'Hiện có: 400 cổng; nhu cầu: 560 cổng; 16 cổng/bo. Phân bổ: Hà Nội 6 bo, Hải Phòng 4 bo.',
       result: '(560 − 400) / 16 = 10 bo; 10 × 16 = 160 cổng bổ sung; tổng sau mở rộng: 560 cổng.',
       rows: [{ location: 'Hà Nội', quantity: '6' }, { location: 'Hải Phòng', quantity: '4' }].map(row => ({ project: 'Mở rộng BRCĐ năm 2027', device: 'Bo mạch PON 16 cổng', unit: 'Bo', existing: '400 cổng toàn khu vực', required: '560 cổng toàn khu vực', capacity: '16 cổng PON/bo', price: '180000000', schedule: 'Quý II/2027', note: 'Kiểm tra tương thích và khe cắm trước khi trang bị', ...row }))
+    },
+    {
+      id:'KHPTM-MAU-CSHT-2027', type:'CSHT', year:2027, number:'1086', approvalDate:'2026-09-29', sourceNumber:'1256', sourceDate:'2026-09-22',
+      author:'Phạm Minh Hạ', location:'Node chính Hà Nội và TP. Hồ Chí Minh', stage:'PREPARE', date:'2026-09-30',
+      current:'Rà soát nguồn điện, điều hòa và không gian lắp đặt tại các node chính.',
+      goal:'Bảo đảm CSHT tại các node chính đáp ứng KHPTM năm 2027.',
+      need:'Các đơn vị trực thuộc rà soát hiện trạng và đề xuất trang bị CSHT theo nhu cầu phát triển mạng.',
+      rows:[
+        {project:'Trang bị CSHT node chính năm 2027',device:'Hệ thống nguồn điện dự phòng',location:'Node Hà Nội',unit:'Hệ thống',quantity:'1',capacity:'Cần khảo sát',price:'',schedule:'Năm 2027',note:'Dữ liệu mẫu, chờ kết quả rà soát đơn vị'},
+        {project:'Trang bị CSHT node chính năm 2027',device:'Hệ thống điều hòa phòng máy',location:'Node TP. Hồ Chí Minh',unit:'Hệ thống',quantity:'1',capacity:'Cần khảo sát',price:'',schedule:'Năm 2027',note:'Dữ liệu mẫu, chờ kết quả rà soát đơn vị'}
+      ]
     }
   ];
   root.KHPTMDemoData = { plans };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.KHPTMDemoData;
 }(typeof window === 'undefined' ? globalThis : window));
+

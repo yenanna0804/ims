@@ -9,8 +9,8 @@ function prepared(type='Core di động'){
  r.submission={id:'submission',revision:r.revision,signatures:[],issued:false};return r;
 }
 const detail=r=>({files:[r.submission.id,...r.files.map(f=>f.id)],note:'Xem xét đề xuất',co:[],view:['khdt']});
-test('Căn cứ chỉ nhận KHPTM đã phê duyệt và ban hành của 3 nhóm chung',()=>{
- for(const invalid of [null,basis('CSHT'),{...basis('Vô tuyến'),decision:{signed:false,issued:true}},{...basis('BRCĐ'),decision:{signed:true,issued:false}}]) assert.throws(()=>W.create(invalid,'1'));
+test('Căn cứ chỉ nhận KHPTM đã phê duyệt và ban hành của loại thiết bị được hỗ trợ',()=>{
+ for(const invalid of [null,basis('Loại khác'),{...basis('Vô tuyến'),decision:{signed:false,issued:true}},{...basis('BRCĐ'),decision:{signed:true,issued:false}}]) assert.throws(()=>W.create(invalid,'1'));
 });
 test('Nháp chưa có căn cứ không sinh tài liệu hoặc chuyển xử lý',()=>{
  const r=W.draft('PAKT-DRAFT');W.saveDraft(r,'pm',{...r.data,name:'Đề xuất mới'},r.rows);
