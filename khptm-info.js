@@ -34,6 +34,7 @@
     return khptm2Role === 'Đơn vị cung cấp thông tin' && khptm2Step === 'BINFO' && r.receipt && !r.receipt.completed && r.receipt.unit === khptm2ProviderUnit;
   }
   function fields(kind, code) {
+    if(editing?.context?.fields)return common.concat(editing.context.fields);
     return common.concat(kind === 'request' ? requestFields.filter(f => code === '2.2' || !['planBasis','need','current'].includes(f[0])) : supplyFields);
   }
   function defaults(kind, code) {
@@ -57,7 +58,7 @@
     if (!editing) return null;
     const data = {...editing.data};
     document.querySelectorAll('#khptm2InfoModal [data-info-field]').forEach(el => data[el.dataset.infoField] = el.value.trim());
-    if (editing.kind === 'supply') {
+    if (editing.kind === 'supply' && !editing.context?.fields) {
       data.lines = Array.from({length:11},() => ({}));
       document.querySelectorAll('#khptm2InfoModal [data-info-line]').forEach(el => data.lines[Number(el.dataset.infoLine)][el.dataset.infoCol] = el.value.trim());
     }
@@ -66,17 +67,18 @@
   function showForm(kind, code, data) {
     const modal = document.getElementById('khptm2InfoModal');
     let html = '';
-    if (kind === 'request') html += '<div class="toolbar"><label for="khInfoCode">Biểu mẫu</label><select id="khInfoCode" style="width:auto" onchange="khInfo.changeCode(this.value)"><option value="2.1" '+(code==='2.1'?'selected':'')+'>SOP1-TB-01A — Thông tin phục vụ XD KHPTM</option><option value="2.2" '+(code==='2.2'?'selected':'')+'>SOP1-TB-01B — Số liệu hiện trạng</option></select></div>';
+    if(editing?.context?.templateLabel)html+='<div class="kh2-doc-note" style="margin-bottom:12px"><b>'+escape(editing.context.templateLabel)+'</b></div>';
+    else if (kind === 'request') html += '<div class="toolbar"><label for="khInfoCode">Biểu mẫu</label><select id="khInfoCode" style="width:auto" onchange="khInfo.changeCode(this.value)"><option value="2.1" '+(code==='2.1'?'selected':'')+'>SOP1-TB-01A — Thông tin phục vụ XD KHPTM</option><option value="2.2" '+(code==='2.2'?'selected':'')+'>SOP1-TB-01B — Số liệu hiện trạng</option></select></div>';
     else { const received = editing?.context?.receipt || record().receipt; html += '<div class="kh2-doc-note" style="margin-bottom:12px"><b>SOP1-CQ-1 — Văn bản cung cấp thông tin phục vụ XD KH PTM cáp quang</b><br>Người chuyển: '+escape(received.sender)+' · Đơn vị nhận: '+escape(received.unit)+' · Yêu cầu: '+escape(code)+'</div>'; }
     html += '<div id="khInfoValidation" class="khptm-note" role="alert" hidden></div>';
     html += '<div class="kh2-modal-grid">'+fields(kind,code).map(f => f[0]==='unit' && editing?.context?.units ? '<div class="full"><label for="khInfo_unit">'+f[1]+'</label><select id="khInfo_unit" data-info-field="unit">'+editing.context.units.map(unit=>'<option'+(unit===data.unit?' selected':'')+'>'+escape(unit)+'</option>').join('')+'</select></div>' : fieldHTML(f,data)).join('')+'</div>';
-    if (kind === 'supply') {
+    if (kind === 'supply' && !editing?.context?.fields) {
       html += '<div class="section" style="margin-top:12px"><h3>Phụ lục 1 — Đề xuất triển khai các tuyến cáp quang</h3><div style="overflow:auto"><table><thead><tr><th>STT</th><th>Hướng tuyến</th><th>Cự ly(Km)</th><th>Số sợi(FO)</th><th>Mục đích, lý do thay thế</th></tr></thead><tbody>';
       for (let i=0;i<11;i++) html += '<tr><td>'+(i<10?i+1:'')+'</td>'+['direction','distance','fibers','reason'].map(col => '<td><input aria-label="'+({direction:'Hướng tuyến',distance:'Cự ly',fibers:'Số sợi',reason:'Mục đích, lý do thay thế'})[col]+' dòng '+(i+1)+'" data-info-line="'+i+'" data-info-col="'+col+'" '+(['distance','fibers'].includes(col)?'type="number" min="0" step="'+(col==='fibers'?'1':'any')+'"':'')+' value="'+escape((data.lines && data.lines[i] || {})[col] || '')+'"></td>').join('')+'</tr>';
       html += '</tbody></table></div><div class="body mini">Tổng số tuyến và tổng chiều dài được tính từ các dòng đã nhập.</div></div>';
     }
     html += '<div class="footer-actions"><button onclick="closeKHPTM2InfoModal()">Đóng</button><button onclick="khInfo.previewDraft()">Xem preview văn bản</button><button class="primary" onclick="khInfo.save()">Lưu văn bản</button></div>';
-    document.getElementById('khptm2InfoModalTitle').textContent = kind === 'request' ? 'Tạo VB yêu cầu cung cấp thông tin' : 'Tạo VB cung cấp thông tin';
+    document.getElementById('khptm2InfoModalTitle').textContent = editing?.context?.formTitle || (kind === 'request' ? 'Tạo VB yêu cầu cung cấp thông tin' : 'Tạo VB cung cấp thông tin');
     modal.querySelector('.modalbody').innerHTML = html;
     modal.classList.add('show');modal.querySelector('.modalbox').scrollTop=0;
   }
@@ -122,12 +124,12 @@
       return '<p'+(/PHỤ LỤC|ĐỀ XUẤT TRIỂN KHAI|Đính kèm/.test(block.text)?' style="text-align:center"':'')+'>'+fill(block.text)+'</p>';
     }).join('')+'</div>';
   }
-  function preview(kind,data,code) {
-    document.getElementById('khptmPreviewTitle').textContent=kind==='request' ? (code==='2.2'?'SOP1-TB-01B':'SOP1-TB-01A')+' — Văn bản yêu cầu cung cấp thông tin' : 'SOP1-CQ-1 — Văn bản cung cấp thông tin phục vụ XD KH PTM cáp quang';
-    document.getElementById('khptmPreviewPaper').innerHTML=kind==='request'?requestHTML(data,code):supplyHTML(data);
+  function preview(kind,data,code,context) {
+    document.getElementById('khptmPreviewTitle').textContent=context?.templateLabel || (kind==='request' ? (code==='2.2'?'SOP1-TB-01B':'SOP1-TB-01A')+' — Văn bản yêu cầu cung cấp thông tin' : 'SOP1-CQ-1 — Văn bản cung cấp thông tin phục vụ XD KH PTM cáp quang');
+    document.getElementById('khptmPreviewPaper').innerHTML=context?.renderHTML?context.renderHTML(data,kind,code):kind==='request'?requestHTML(data,code):supplyHTML(data);
     document.getElementById('khptmPreviewModal').classList.add('show');
   }
-  function previewDraft() { if (!canEditSession()) return toast('Nhiệm vụ xử lý đã thay đổi');preview(editing.kind,capture(),editing.code); }
+  function previewDraft() { if (!canEditSession()) return toast('Nhiệm vụ xử lý đã thay đổi');preview(editing.kind,capture(),editing.code,editing.context); }
   function invalid(message) { const host=document.getElementById('khInfoValidation');if(host){host.hidden=false;host.textContent=message;host.scrollIntoView({block:'nearest'});}toast(message); }
   function save() {
     if (!canEditSession()) return invalid('Bạn chưa được giao nhiệm vụ tạo văn bản này');
@@ -161,6 +163,7 @@
     if(composerSession && ta)composerSession.draft.text=ta.value;
   }
   function previewAttachment(attachment){
+    if(attachment.html){document.getElementById('khptmPreviewTitle').textContent=attachment.name;document.getElementById('khptmPreviewPaper').innerHTML=attachment.html;document.getElementById('khptmPreviewModal').classList.add('show');return;}
     if(attachment.kind!=='upload')return preview(attachment.kind,attachment.doc.document,attachment.code);
     document.getElementById('khptmPreviewTitle').textContent=attachment.name;
     const paper=document.getElementById('khptmPreviewPaper');

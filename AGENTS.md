@@ -46,6 +46,14 @@ Nếu lãnh đạo không đồng ý báo cáo: trả PM rà soát chủ trì s�
 
 Ký nháy là nhánh có thể chọn; LĐ chủ trì ký chính thức có thể trình thẳng LĐ TCT. Khi đã chọn gửi ký nháy, người nhận phải ký nháy trước khi trình hoặc trả LĐ chủ trì.
 
+## CSHT bước 5 khách chốt 03/10/2026
+
+Bước 5, 5.1, 5.2 là quá trình xây đề xuất và lấy số liệu; 5.1/5.2 là nhánh tùy chọn. PM Ban KT có thể gửi xử lý chính trực tiếp tới PM hoặc LĐ Ban KTM, VNPT TTP/VNP/IT, đơn vị liên quan và đơn vị trực thuộc. Không ép duyệt phương án hoặc yêu cầu trước khi gửi đơn vị trực thuộc. Bước 5.3/5.4 dùng cùng popup tạo VB yêu cầu / VB phản hồi, nội dung đúng rà soát hiện trạng và đề xuất CSHT ở node chính; không dùng mẫu cáp quang.
+
+LĐ Ban KT chỉ Duyệt khi nhận nhiệm vụ duyệt từ PM Ban KT. Nhận phản hồi từ người khác thì chỉ Chuyển về PM Ban KT tổng hợp. LĐ đơn vị chỉ Duyệt kết quả khi người chuyển trước là PM thuộc chính đơn vị đó; nhận yêu cầu từ PM Ban KT chỉ Chuyển/phân công. PM đơn vị được phản hồi trực tiếp Ban KT hoặc trình LĐ của mình; khi đã trình LĐ thì kết quả phải được duyệt trước khi trả Ban KT. Quyền phải kiểm tra nguồn, nhiệm vụ, tài liệu và phiên bản ở cả UI lẫn handler.
+
+Hoàn thành tổng hợp quy mô 5.5 thì chuyển hồ sơ sang bước (8), chuẩn bị giao nhiệm vụ lập DAĐT/BCĐT, KHLCNT cho dự án cấp TCT. Phần Căn cứ chỉ hiện ở màn PM chủ trì, bỏ ở các màn còn lại. Các luồng ba loại thiết bị trước vẫn giữ nguyên.
+
 ## Tài liệu và kiểm tra
 
 Đối chiếu “Gỡ băng buổi 1”, “gỡ băng buổi 2” và các quy trình/biểu mẫu khi làm nghiệp vụ mới; ưu tiên các nội dung khách hàng đã chốt trực tiếp trong phiên làm việc.

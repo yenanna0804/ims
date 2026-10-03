@@ -21,12 +21,14 @@
   const roles = { pm: 'PM Ban KT', lead: 'LĐ Ban KT', khdt: 'Ban KHĐT – nhận thông tin',
     ...Object.fromEntries([...providers, cshtUnit].flatMap(p => [[p.lead, 'LĐ ' + p.unit], [p.pm, 'PM ' + p.unit]])) };
   const provider = actor => [...providers, cshtUnit].find(p => [p.lead, p.pm].includes(actor));
-  const roleKeys = r => [...(isCSHT(r) ? ['pm','lead'] : ['pm','lead','khdt']), ...providersFor(r).flatMap(p => [p.lead,p.pm])];
+  const roleKeys = r => [...(isCSHT(r) && cshtStage(r) !== 'STEP8' ? ['pm','lead'] : ['pm','lead','khdt']), ...providersFor(r).flatMap(p => [p.lead,p.pm])];
+  const roleLabel = (r, actor) => isCSHT(r) && actor === 'khdt' ? 'Ban KHĐT – chuẩn bị giao nhiệm vụ (8)' : roles[actor];
   const infoRequest = (r, actor) => r?.requests?.find(q => providersFor(r).some(p => p.lead === q.lead && p.pm === q.pm) && q.status !== 'RETURNED' && q.owner === actor && q.receipt.to === actor &&
     q.receipt.requestId === q.id && q.receipt.revision === q.revision &&
     (q.receipt.purpose === 'DATA_ASSIGN' && actor === q.lead && q.receipt.from === 'pm' ||
-     q.receipt.purpose === 'DATA_WORK' && actor === q.pm && q.receipt.from === q.lead ||
-     q.receipt.purpose === 'DATA_REVIEW' && actor === q.lead && q.receipt.from === q.pm && q.receipt.responseRevision === q.responseRevision));
+     q.receipt.purpose === 'DATA_WORK' && actor === q.pm && (q.receipt.from === q.lead || isCSHT(r) && q.receipt.from === 'pm') ||
+     q.receipt.purpose === 'DATA_REVIEW' && actor === q.lead && q.receipt.from === q.pm && q.receipt.responseRevision === q.responseRevision ||
+     isCSHT(r) && q.receipt.purpose === 'DATA_FORWARD' && actor === 'lead' && [q.pm,q.lead].includes(q.receipt.from) && q.receipt.responseRevision === q.responseRevision));
   const mainOwns = (r, actor) => !!r && !!roles[actor] && r.owner === actor && r.receipt?.to === actor && r.receipt.revision === r.revision;
   const receiptFor = (r, actor) => infoRequest(r, actor)?.receipt || (mainOwns(r, actor) ? r.receipt : r?.infoReceipts?.[actor]);
   const fields = [
@@ -45,21 +47,22 @@
     ['capacity', 'Năng lực / thông số kỹ thuật'], ['price', 'Đơn giá khái toán (VNĐ)'], ['schedule', 'Tiến độ'], ['note', 'Ghi chú']];
   const emptyRow = () => Object.fromEntries(columns.map(([key]) => [key, '']));
   const owns = (r, actor) => mainOwns(r, actor) || !!infoRequest(r, actor);
-  const canEdit = (r, actor) => mainOwns(r, actor) && actor === 'pm' && r.receipt.purpose === 'PREPARE' && [null, 'lead'].includes(r.receipt.from);
+  const canEdit = (r, actor) => mainOwns(r, actor) && actor === 'pm' && r.receipt.purpose === 'PREPARE' && ([null, 'lead'].includes(r.receipt.from) ||
+    isCSHT(r) && cshtStage(r)==='SCALE' && completedCSHTReview(r) && r.latestDataReceipt?.purpose==='DATA_RESULT' && r.latestDataReceipt.to==='pm' && r.receipt.from===r.latestDataReceipt.from);
   const canProvide = (r, actor) => infoRequest(r, actor)?.receipt.purpose === 'DATA_WORK' && provider(actor)?.pm === actor;
   const pendingRequests = r => (r.requests || []).filter(q => q.status !== 'RETURNED');
   const documentTargets = f => (f.document?.unit + ';' + (f.document?.related || '')).split(/[;,\n]/).map(unit => unit.trim());
   function storeInfoDocument(r, actor, kind, code, data, artifact) {
     const q = infoRequest(r, actor);
     if (kind === 'request' ? !canEdit(r, actor) || !hasBasis(r) : !canProvide(r, actor)) throw Error('Bạn chưa được giao nhiệm vụ tạo văn bản này');
-    if (kind === 'supply' && q?.kind === 'CSHT_REVIEW') throw Error('Ghi kết quả rà soát CSHT và đính kèm hồ sơ tại Lịch sử trao đổi');
     if (!['request','supply'].includes(kind) || !['2.1','2.2'].includes(code)) throw Error('Biểu mẫu không hợp lệ');
     if (kind === 'request' && (!requestTargets(r).some(p => p.unit === data.unit) || !data.content?.trim() || !data.deadline)) throw Error('Nhập đơn vị nhận đúng RACI, nội dung yêu cầu và thời hạn cung cấp');
     if (kind === 'supply' && (!data.issuer?.trim() || !data.recipient1?.trim() || !data.period?.trim())) throw Error('Nhập đơn vị ban hành, đơn vị nhận và giai đoạn đề xuất');
+    if (kind === 'supply' && isCSHT(r) && !data.content?.trim()) throw Error('Nhập kết quả hiện trạng / rà soát trong văn bản phản hồi');
     const version = 1 + r.files.filter(f => f.infoKind === kind && f.infoCode === code && f.authorKey === actor && f.infoRequestId === q?.id).reduce((v,f) => Math.max(v,f.version),0);
     const f = { ...artifact, id:(q?.id || r.id)+'-'+kind+'-'+code.replace('.','_')+'-'+actor+'-v'+version, generated:false,
       infoKind:kind, infoCode:code, docType:kind === 'request' ? 'infoRequest' : 'infoSupply', document:structuredClone(data), version, authorKey:actor,
-      cshtRequest:isCSHT(r) && kind === 'request' && cshtStage(r) === 'REQUEST',
+      cshtRequest:isCSHT(r) && kind === 'request' && data.unit === cshtUnit.unit,
       infoRequestId:q?.id, requestDocumentId:q?.requestDocumentId, requestDocumentVersion:q?.requestDocumentVersion, posted:false };
     r.files.push(f);return f;
   }
@@ -117,7 +120,7 @@
   // RACI Bước 5: LĐ Ban KT duyệt nội dung; không có nhánh LĐ TCT/Văn thư ký, ban hành.
   const canSign = () => false;
   const canIssue = () => false;
-  const canApprove = (r, actor) => isCSHT(r) && cshtStage(r) === 'REQUEST' ? canApproveCSHTRequest(r, actor) : actor === 'lead' && mainOwns(r, actor) && receivedSubmission(r) && pairReady(r) &&
+  const canApprove = (r, actor) => isCSHT(r) && r.receipt.purpose === 'CSHT_REQUEST_REVIEW' ? canApproveCSHTRequest(r, actor) : actor === 'lead' && mainOwns(r, actor) && receivedSubmission(r) && pairReady(r) &&
     !pendingRequests(r).length && r.approval?.revision !== r.revision && (!isCSHT(r) || cshtStage(r) === 'PROPOSAL' || cshtStage(r) === 'SCALE' && completedCSHTReview(r));
   const canApproveData = (r, actor) => {
     const q = infoRequest(r, actor); return !!q && provider(actor)?.lead === actor && q.receipt.purpose === 'DATA_REVIEW' &&
@@ -125,7 +128,7 @@
   };
   function approve(r, actor) {
     if (!canApprove(r, actor)) throw Error('Không có nhiệm vụ duyệt phương án phiên bản này hoặc còn yêu cầu số liệu chưa hoàn thành');
-    if (isCSHT(r) && cshtStage(r) === 'REQUEST') { const f=cshtRequestFile(r); r.csht.requestApproval={ actor, revision:r.revision, fileId:f.id, version:f.version, fingerprint:requestFingerprint(f), note:r.receipt.note, files:r.receipt.files.slice(), time:new Date().toISOString() }; return; }
+    if (isCSHT(r) && r.receipt.purpose === 'CSHT_REQUEST_REVIEW') { const f=requestReviewFile(r); r.csht.requestApproval={ actor, revision:r.revision, fileId:f.id, version:f.version, fingerprint:requestFingerprint(f), note:r.receipt.note, files:r.receipt.files.slice(), time:new Date().toISOString() }; return; }
     r.approval = { actor, revision: r.revision, receipt: { ...r.receipt }, time: new Date().toISOString() };
   }
   function approveData(r, actor) {
@@ -142,51 +145,70 @@
     }
   }
   const coAllowed = (r, actor) => isCSHT(r) ? cshtCoAllowed(r, actor) : hasBasis(r) && canEdit(r, actor) ? providers.filter(p => !(r.requests || []).some(q => q.unit === p.unit && q.status !== 'RETURNED')).map(p => p.lead) : [];
-  const viewAllowed = (r, actor) => owns(r, actor) ? (isCSHT(r) ? ['pm','lead',...providersFor(r).map(p => p.lead)] : ['khdt', 'pm', 'lead', ...providers.map(p => p.lead)]).filter(key => key !== actor) : [];
-  const requestTargets = r => isCSHT(r) && ['REQUEST','DISPATCH'].includes(cshtStage(r)) ? [cshtUnit] : providers;
+  const viewAllowed = (r, actor) => owns(r, actor) ? (isCSHT(r) ? roleKeys(r) : ['khdt', 'pm', 'lead', ...providers.map(p => p.lead)]).filter(key => key !== actor) : [];
+  const requestTargets = r => providersFor(r);
   const cshtRequestFile = r => r.files.filter(f => f.cshtRequest && f.infoKind === 'request' && documentTargets(f).includes(cshtUnit.unit)).at(-1);
   const requestFingerprint = f => f && JSON.stringify([f.id, f.version, f.document]);
+  const requestReviewFile = r => r.files.find(f => f.id === r.csht?.requestReview?.fileId);
   const approvedCSHTRequest = r => {
-    const a=r.csht?.requestApproval, f=cshtRequestFile(r);
+    const a=r.csht?.requestApproval, f=requestReviewFile(r);
     return !!a && a.actor === 'lead' && a.revision === r.revision && a.fileId === f?.id && a.fingerprint === requestFingerprint(f);
   };
-  const canApproveCSHTRequest = (r, actor) => actor === 'lead' && mainOwns(r, actor) && r.receipt.from === 'pm' &&
-    r.receipt.purpose === 'CSHT_REQUEST_REVIEW' && !!cshtRequestFile(r) && r.receipt.files.includes(cshtRequestFile(r).id) &&
-    r.csht.requestReview === requestFingerprint(cshtRequestFile(r)) && !approvedCSHTRequest(r);
+  const canApproveCSHTRequest = (r, actor) => actor === 'lead' && mainOwns(r, actor) && !infoRequest(r,actor) && r.receipt.from === 'pm' &&
+    r.receipt.purpose === 'CSHT_REQUEST_REVIEW' && !!requestReviewFile(r) && r.receipt.files.includes(requestReviewFile(r).id) &&
+    r.csht.requestReview.fingerprint === requestFingerprint(requestReviewFile(r)) && !approvedCSHTRequest(r);
   const completedCSHTReview = r => r.requests.some(q => q.kind === 'CSHT_REVIEW' && q.status === 'RETURNED' &&
-    q.receipt.from === cshtUnit.lead && q.receipt.purpose === 'DATA_RESULT' && q.responseRevision > 0 && q.approvedRevision === q.responseRevision);
+    q.receipt.purpose === 'DATA_RESULT' && q.responseRevision > 0);
+  // Khách chốt 03/10: 5.1/5.2 tùy chọn; PM KT có thể gửi trực tiếp PM hoặc LĐ đơn vị.
   function cshtCoAllowed(r, actor) {
-    if (!hasBasis(r) || actor !== 'pm' || !mainOwns(r, actor)) return [];
-    const candidates = cshtStage(r) === 'PROPOSAL' && canEdit(r,actor) ? providers : cshtStage(r) === 'DISPATCH' &&
-      r.receipt.from === 'lead' && r.receipt.purpose === 'CSHT_DISPATCH' && approvedCSHTRequest(r) ? [cshtUnit] : [];
-    return candidates.filter(p => !pendingRequests(r).some(q => q.unit === p.unit)).map(p => p.lead);
+    if (!hasBasis(r) || !canEdit(r,actor)) return [];
+    return providersFor(r).filter(p => !pendingRequests(r).some(q => q.unit === p.unit)).flatMap(p => [p.lead,p.pm]);
   }
   function advanceCSHT(r, stage) {
     r.archive.push({ revision:r.revision, data:{...r.data}, rows:r.rows.map(row=>({...row})), files:r.files.filter(f=>f.generated), submission:r.submission });
     r.files=r.files.filter(f=>!f.generated); r.submission=null; r.approval=null; r.revision++;
     r.csht.stage=stage; r.owner=r.viewer='pm';
-    r.receipt={...r.receipt, to:'pm', purpose:'PREPARE', revision:r.revision};
+    r.receipt={...(stage==='SCALE'?r.latestDataReceipt:r.receipt), to:'pm', purpose:'PREPARE', revision:r.revision};
   }
   function cshtAllowed(r, actor) {
-    const stage=cshtStage(r);
-    if (actor === 'pm' && stage === 'DISPATCH') return cshtCoAllowed(r,actor);
-    if (stage === 'REQUEST') {
-      if (actor === 'pm' && canEdit(r,actor)) return cshtRequestFile(r) ? ['lead'] : [];
-      if (actor === 'lead' && mainOwns(r,actor) && r.receipt.from === 'pm' && r.receipt.purpose === 'CSHT_REQUEST_REVIEW') return ['pm'];
-    }
-    return null;
+    if (actor === 'pm' && canEdit(r,actor)) return ['lead',...cshtCoAllowed(r,actor)];
+    if (actor === 'pm' && canHandoffStep8(r,actor)) return ['khdt'];
+    if (actor === 'lead' && mainOwns(r,actor) && r.receipt.from === 'pm' && ['REVIEW','CSHT_REQUEST_REVIEW'].includes(r.receipt.purpose)) return ['pm'];
+    return [];
+  }
+  function cshtTaskAllowed(r, q) {
+    if (q.receipt.purpose === 'DATA_ASSIGN') return [q.pm,'pm','lead'];
+    if (q.receipt.purpose === 'DATA_WORK') return [q.lead,'pm','lead'];
+    if (q.receipt.purpose === 'DATA_FORWARD') return ['pm'];
+    if (q.receipt.purpose === 'DATA_REVIEW') return [q.pm,...(q.approvedRevision === q.responseRevision && q.responseRevision > 0 ? ['pm','lead'] : [])];
+    return [];
   }
   function transferCSHTRequest(r, actor, to, detail) {
-    const f=cshtRequestFile(r);
+    const f=actor === 'pm' ? r.files.filter(f=>f.infoKind === 'request' && detail.files.includes(f.id) && !r.requests.some(q=>q.requestDocumentId===f.id)).at(-1) : requestReviewFile(r);
     if (!f || !detail.files.includes(f.id)) throw Error('Chọn văn bản yêu cầu rà soát CSHT để chuyển');
     if (actor === 'pm' && !detail.note.trim()) throw Error('Nhập nội dung trình duyệt yêu cầu rà soát CSHT');
     const approved=approvedCSHTRequest(r);
     if (actor === 'lead' && !approved && !detail.note.trim()) throw Error('Nhập yêu cầu sửa nội dung rà soát CSHT');
-    if (actor === 'pm') { r.csht.requestReview=requestFingerprint(f); r.csht.requestApproval=null; }
-    if (actor === 'lead' && approved) r.csht.stage='DISPATCH';
+    if (actor === 'pm') { r.csht.requestReview={fileId:f.id,fingerprint:requestFingerprint(f)}; r.csht.requestApproval=null; }
+    if(actor==='pm')(detail.co||[]).forEach(key=>requestData(r,actor,key,detail));
     share(r,actor,detail);
-    r.receipt={...detail, files:detail.files.slice(), from:actor, to, purpose:actor === 'pm' ? 'CSHT_REQUEST_REVIEW' : approved ? 'CSHT_DISPATCH' : 'PREPARE', revision:r.revision, time:new Date().toISOString()};
+    r.receipt={...detail, files:detail.files.slice(), from:actor, to, purpose:actor === 'pm' ? 'CSHT_REQUEST_REVIEW' : 'PREPARE', revision:r.revision, time:new Date().toISOString()};
     r.owner=r.viewer=to;
+  }
+  const canHandoffStep8 = (r,actor) => isCSHT(r) && actor === 'pm' && mainOwns(r,actor) && cshtStage(r) === 'SCALE' &&
+    r.receipt.from === 'lead' && r.receipt.purpose === 'RESULT' && r.approval?.revision === r.revision && completedCSHTReview(r) && !pendingRequests(r).length;
+  function transferCSHTData(r, actor, to, detail, q) {
+    if (q.receipt.purpose === 'DATA_WORK' && !q.responseRevision) throw Error('Lưu / gửi văn bản phản hồi hoặc kết quả hiện trạng trước khi chuyển');
+    if (q.response.files.some(id=>!detail.files.includes(id))) throw Error('Chọn đầy đủ tài liệu phản hồi của phiên bản đang chuyển');
+    if (q.receipt.purpose === 'DATA_REVIEW' && to !== q.pm && q.approvedRevision !== q.responseRevision) throw Error('Duyệt kết quả trước khi gửi Ban KT');
+    if (!q.responseRevision && ['pm','lead'].includes(to) && !detail.note.trim()) throw Error('Ghi nội dung chuyển / trả yêu cầu');
+    if (to === q.pm && q.receipt.purpose === 'DATA_REVIEW') { if(!detail.note.trim()) throw Error('Ghi yêu cầu sửa kết quả');q.approvedRevision=0;q.approval=null; }
+    const purpose=to === 'pm' ? q.responseRevision ? 'DATA_RESULT' : 'DATA_RETURN' : to === 'lead' ? 'DATA_FORWARD' : to === q.pm ? 'DATA_WORK' : 'DATA_REVIEW';
+    q.owner=to;q.status=to === 'pm' ? 'RETURNED' : purpose;
+    q.receipt={...detail,files:detail.files.slice(),from:actor,to,purpose,requestId:q.id,revision:q.revision,responseRevision:q.responseRevision,time:new Date().toISOString()};
+    if(to === 'pm')r.latestDataReceipt={...q.receipt};share(r,actor,detail,q.id);r.viewer=to;
+    if(to === 'pm' && completedCSHTReview(r) && !pendingRequests(r).length) advanceCSHT(r,'SCALE');
+    return {request:q};
   }
   function share(r, actor, detail, requestId) {
     r.infoReceipts ||= {};
@@ -200,22 +222,24 @@
     if (!detail.note.trim()) throw Error('Nhập yêu cầu cung cấp số liệu ở Thông tin ý kiến');
     const p = provider(to), id = r.id + '-INFO-' + ((r.requests || []).length + 1);
     const source = r.files.filter(f => f.infoKind === 'request' && detail.files.includes(f.id) && documentTargets(f).includes(p.unit)).sort((a,b) => b.version-a.version)[0];
-    if (isCSHT(r) && p === cshtUnit && (!approvedCSHTRequest(r) || source?.id !== r.csht.requestApproval.fileId)) throw Error('LĐ Ban KT phải duyệt đúng phiên bản yêu cầu trước khi gửi đơn vị trực thuộc');
+    if (isCSHT(r) && p === cshtUnit && !source?.cshtRequest) throw Error('Tạo và chọn VB yêu cầu rà soát hiện trạng, đề xuất CSHT trước khi gửi đơn vị trực thuộc');
     const files = detail.files.filter(id => {const f=r.files.find(file => file.id===id);return !f?.infoKind || f.infoKind!=='request' || documentTargets(f).includes(p.unit);});
-    const q = { ...(isCSHT(r) && p === cshtUnit ? {kind:'CSHT_REVIEW', requestApproval:{...r.csht.requestApproval}} : {}), id, unit: p.unit, lead: p.lead, pm: p.pm, owner: to, status: 'ASSIGN', revision: r.revision,
+    const purpose=isCSHT(r) && to === p.pm ? 'DATA_WORK' : 'DATA_ASSIGN';
+    const q = { ...(isCSHT(r) && p === cshtUnit ? {kind:'CSHT_REVIEW'} : {}), id, unit: p.unit, lead: p.lead, pm: p.pm, owner: to, status: isCSHT(r)?purpose:'ASSIGN', revision: r.revision,
       requestDocumentId:source?.id,requestDocumentVersion:source?.version,
       dossierName: r.data.name,
       documents: [{ ...r.basis.decision, id: r.basis.id + '-basis', docType: 'basis' }, ...(r.submission ? [r.submission] : []), ...r.files].filter(file => files.includes(file.id)).map(file => ({ ...file, document:file.document && structuredClone(file.document), signatures: file.signatures?.slice() })),
       response: { text: '', files: [] }, responseRevision: 0, approvedRevision: 0,
-      receipt: { from: actor, to, purpose: 'DATA_ASSIGN', requestId: id, revision: r.revision, note: detail.note, files, time: new Date().toISOString() } };
-    r.requests ||= []; r.requests.push(q); share(r, actor, detail, id); return q;
+      receipt: { from: actor, to, purpose, requestId: id, revision: r.revision, note: detail.note, files, time: new Date().toISOString() } };
+    r.requests ||= []; r.requests.push(q); if(isCSHT(r) && p === cshtUnit){r.csht.stage='REVIEW';r.approval=null;} share(r, actor, detail, id); return q;
   }
   function allowed(r, actor) {
     if (!hasBasis(r) || !owns(r, actor)) return [];
     const q = infoRequest(r, actor);
+    if (q && isCSHT(r)) return cshtTaskAllowed(r,q);
     if (q) return q.receipt.purpose === 'DATA_ASSIGN' ? [q.pm] : q.receipt.purpose === 'DATA_WORK' ? [q.lead] :
       q.receipt.purpose === 'DATA_REVIEW' ? [q.pm, ...(q.approvedRevision === q.responseRevision && q.responseRevision > 0 ? ['pm'] : [])] : [];
-    if (isCSHT(r)) { const directions=cshtAllowed(r,actor); if (directions !== null) return directions; }
+    if (isCSHT(r)) return cshtAllowed(r,actor);
     if (actor === 'pm') return canEdit(r, actor) ? [...(pairReady(r) && !pendingRequests(r).length ? ['lead'] : []), ...coAllowed(r, actor)] : [];
     if (actor === 'lead' && receivedSubmission(r)) return ['pm'];
     return [];
@@ -227,9 +251,21 @@
     if (detail.files.some(id => !knownFiles.includes(id))) throw Error('Tài liệu chuyển không thuộc hồ sơ này');
     if ((detail.co || []).some(key => !coAllowed(r, actor).includes(key)) || (detail.view || []).some(key => !viewAllowed(r, actor).includes(key))) throw Error('Người phối hợp / nhận thông tin không thuộc RACI hoặc nhiệm vụ hiện tại');
     const selected = [to, ...(detail.co || []), ...(detail.view || [])]; if (new Set(selected).size !== selected.length) throw Error('Mỗi người nhận chỉ chọn một nhiệm vụ');
+    if (isCSHT(r) && actor === 'pm') {
+      const units=[to,...(detail.co||[])].map(provider).filter(Boolean).map(p=>p.unit);
+      if(new Set(units).size!==units.length)throw Error('Chọn một người nhận yêu cầu trong mỗi đơn vị');
+      if(units.includes(cshtUnit.unit) && !r.files.some(f=>f.cshtRequest && detail.files.includes(f.id)))throw Error('Chọn VB yêu cầu rà soát CSHT cho đơn vị trực thuộc');
+    }
     if (actor === 'pm' && provider(to)) {const selectedDocs=r.files.filter(f => f.infoKind==='request' && detail.files.includes(f.id));if(selectedDocs.length && !selectedDocs.some(f => documentTargets(f).includes(provider(to).unit))) throw Error('Văn bản yêu cầu không gửi tới đơn vị xử lý chính đã chọn');}
     if ((provider(to) || detail.co?.length) && !detail.note.trim()) throw Error('Ghi yêu cầu / nội dung xử lý tại Thông tin ý kiến');
-    if (isCSHT(r) && !q && cshtStage(r) === 'REQUEST') return transferCSHTRequest(r,actor,to,detail);
+    if (isCSHT(r) && q) return transferCSHTData(r,actor,to,detail,q);
+    if (isCSHT(r) && !q && to === 'khdt') {
+      if(!canHandoffStep8(r,actor))throw Error('Hoàn thành và duyệt quy mô CSHT (5.5) trước khi chuyển bước 8');
+      if(!detail.files.includes(r.submission?.id) || r.files.filter(f=>f.generated).some(f=>!detail.files.includes(f.id)))throw Error('Chuyển đầy đủ hồ sơ quy mô đã duyệt sang bước 8');
+      r.nextStep={step:8,title:'Giao nhiệm vụ cho đơn vị lập DAĐT/BCĐT, KHLCNT (Dự án cấp TCT)',sourceId:r.id,revision:r.revision,files:detail.files.slice(),from:actor,to,time:new Date().toISOString()};
+      share(r,actor,detail);r.csht.stage='STEP8';r.owner=r.viewer=to;r.receipt={...detail,files:detail.files.slice(),from:actor,to,purpose:'STEP8_ASSIGNMENT',revision:r.revision,time:r.nextStep.time};return;
+    }
+    if (isCSHT(r) && !q && (actor === 'lead' && r.receipt.purpose === 'CSHT_REQUEST_REVIEW' || actor === 'pm' && to === 'lead' && r.files.some(f=>f.infoKind==='request' && detail.files.includes(f.id) && !r.requests.some(q=>q.requestDocumentId===f.id)))) return transferCSHTRequest(r,actor,to,detail);
     if (q) {
       if (q.receipt.purpose === 'DATA_WORK' && !q.responseRevision) throw Error('Gửi nội dung / lưu tài liệu số liệu trước khi trình lãnh đạo');
       if (q.receipt.purpose === 'DATA_WORK' && q.response.files.some(id => !detail.files.includes(id))) throw Error('Chọn đủ tài liệu số liệu khi trình duyệt');
@@ -242,10 +278,10 @@
       q.receipt = { ...detail, files: detail.files.slice(), from: actor, to, purpose, requestId: q.id, revision: q.revision, responseRevision: q.responseRevision, time: new Date().toISOString() };
       if (to === 'pm') r.latestDataReceipt = { ...q.receipt }; // Không thay phiếu giao lập hồ sơ của PM.
       share(r, actor, detail, q.id); r.viewer = to;
-      if (isCSHT(r) && q.kind === 'CSHT_REVIEW' && to === 'pm' && !pendingRequests(r).length) advanceCSHT(r, 'SCALE');
       return { request: q };
     }
     if (actor === 'pm' && provider(to)) { const created = requestData(r, actor, to, detail); (detail.co || []).forEach(key => requestData(r, actor, key, detail)); r.viewer = to; return { request: created }; }
+    if (isCSHT(r) && actor === 'pm' && (!pairReady(r) || pendingRequests(r).length || detail.co?.length)) throw Error('Hoàn thành các yêu cầu đang xử lý và tạo đủ bộ hồ sơ trước khi trình duyệt quy mô');
     if (!detail.files.includes(r.submission?.id)) throw Error('Chọn Tờ trình/Báo cáo đề xuất/File danh mục để chuyển cùng hồ sơ');
     if (actor === 'pm' && r.files.filter(f => ['report', 'catalog'].includes(f.docType)).some(f => !detail.files.includes(f.id))) throw Error('Chọn Báo cáo đề xuất và file danh mục');
     const approved = r.approval?.revision === r.revision;
@@ -255,11 +291,11 @@
     r.receipt = { ...detail, files: detail.files.slice(), co: (detail.co || []).slice(), view: (detail.view || []).slice(),
       from: actor, to, purpose, revision: r.revision, time: new Date().toISOString() };
     r.owner = to; r.viewer = to;
-    if (isCSHT(r) && to === 'pm' && approved && cshtStage(r) === 'PROPOSAL') { r.csht.proposalApproval={...r.approval}; advanceCSHT(r,'REQUEST'); }
+    if (isCSHT(r) && to === 'pm' && approved && cshtStage(r) === 'PROPOSAL') { r.csht.proposalApproval={...r.approval};r.receipt.purpose='PREPARE';r.approval=null; }
   }
   function sign() { throw Error('Bước 5 thực hiện Duyệt nội dung theo RACI, không ký số'); }
   function issue() { throw Error('Bước 5 không có nghiệp vụ Văn thư ban hành'); }
-  const api = { types, supportedTypes, isCSHT, cshtStage, cshtUnit, providersFor, roleKeys, requestTargets, cshtRequestFile, approvedCSHTRequest, completedCSHTReview, roles, providers, provider, infoRequest, receiptFor, pendingRequests, fields, columns, emptyRow, draft, create, owns, canEdit, canProvide, saveResponse, storeInfoDocument, documentTargets,
+  const api = { types, supportedTypes, isCSHT, cshtStage, cshtUnit, providersFor, roleKeys, roleLabel, requestTargets, requestReviewFile, cshtRequestFile, approvedCSHTRequest, completedCSHTReview, canHandoffStep8, roles, providers, provider, infoRequest, receiptFor, pendingRequests, fields, columns, emptyRow, draft, create, owns, canEdit, canProvide, saveResponse, storeInfoDocument, documentTargets,
     save, saveDraft, validate, installPair, pairReady, allowed, coAllowed, viewAllowed, transfer, canApprove, approve, canApproveData, approveData, canSign, sign, canIssue, issue };
   root.KHStep5 = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
@@ -328,7 +364,7 @@
   }
   function paintFeedback(message,invalid){const host=document.getElementById('kh5Feedback');if(host){host.hidden=false;host.className=invalid?'khptm-note':'khptm-output';host.textContent=message;host.setAttribute('role',invalid?'alert':'status');}}
   const exchangeDraft = r => {const d=r.drafts[r.viewer] || (r.drafts[r.viewer]={text:'',file:null});d.attachments ||= [];return d;};
-  function infoPermission(r, kind) { return kind === 'request' ? edit(r) && !!r.basis : W.canProvide(r, r.viewer) && W.infoRequest(r, r.viewer)?.kind !== 'CSHT_REVIEW'; }
+  function infoPermission(r, kind) { return kind === 'request' ? edit(r) && !!r.basis : W.canProvide(r, r.viewer); }
   const button = (label, action, enabled = true, cls = '') => '<button type="button" class="' + cls + '" onclick="' + esc(action) + '"' + (enabled ? '' : ' disabled') + '>' + esc(label) + '</button>';
   const section = (title, body) => '<div class="section"><h3>' + title + '</h3><div class="body">' + body + '</div></div>';
   const moduleTitle = 'Lựa chọn PAKT, CN, tính toán quy mô';
@@ -364,15 +400,25 @@
     const filtered = [...records.values()].filter(r => (!listFilters.year || String(r.basis.year) === listFilters.year) && (!listFilters.type || r.basis.type === listFilters.type) && (!listFilters.name || r.data.name.toLocaleLowerCase('vi-VN').includes(listFilters.name.trim().toLocaleLowerCase('vi-VN'))) && (!listFilters.status || state(r) === listFilters.status));
     document.getElementById('kh5ListRows').innerHTML = filtered.map((r, i) => '<tr><td>' + (i + 1) + '</td><td>' + esc(r.data.name) + '</td><td>' + esc(r.basis.type) + '</td><td>' + esc(r.basis.title) + '</td><td>' + esc(W.roles[r.owner]) + '</td><td>' + esc(state(r)) + '</td><td>' + button('Xem', "kh5.open('" + r.id + "')") + '</td></tr>').join('') || '<tr><td colspan="7">' + (records.size ? 'Không có hồ sơ phù hợp với điều kiện tìm kiếm.' : 'Chưa có đề xuất.') + '</td></tr>';
   }
-  function state(r) { if (W.isCSHT(r) && r.receipt.purpose !== 'RESULT') { const stage=W.cshtStage(r); if(stage==='REQUEST') return W.approvedCSHTRequest(r)?'Yêu cầu rà soát CSHT đã duyệt':r.owner==='lead'?'Chờ duyệt yêu cầu rà soát CSHT':'Lập yêu cầu rà soát CSHT (5.3)'; if(stage==='DISPATCH') return W.pendingRequests(r).length?'Chờ kết quả rà soát CSHT (5.4)':'Yêu cầu đã duyệt – chờ gửi đơn vị trực thuộc'; if(stage==='SCALE') return r.approval?.revision===r.revision?'Đã duyệt quy mô CSHT (5.5)':r.owner==='lead'?'Chờ duyệt quy mô CSHT (5.5)':'Tổng hợp quy mô CSHT (5.5)'; } return r.receipt.purpose === 'RESULT' ? 'Đã chuyển kết quả' : r.approval?.revision === r.revision ? 'Đã duyệt phương án' : r.receipt.purpose === 'PREPARE' ? W.pendingRequests(r).length ? 'Đang chờ số liệu (' + W.pendingRequests(r).length + ' yêu cầu)' : 'Đang lập / sửa đề xuất' : 'Chờ xem xét đề xuất'; }
+  function state(r) {
+    if (W.isCSHT(r)) {
+      const stage=W.cshtStage(r);
+      if(stage==='STEP8')return 'Bước 8 – chuẩn bị giao nhiệm vụ DAĐT/BCĐT, KHLCNT';
+      if(r.receipt.purpose==='CSHT_REQUEST_REVIEW')return 'Chờ duyệt văn bản yêu cầu';
+      if(stage==='REVIEW')return 'Đang rà soát hiện trạng, đề xuất CSHT (5.4)';
+      if(stage==='SCALE')return r.receipt.purpose==='RESULT'?'Quy mô CSHT đã duyệt – sẵn sàng chuyển bước 8':r.approval?.revision===r.revision?'Đã duyệt quy mô CSHT (5.5)':r.owner==='lead'?'Chờ duyệt quy mô CSHT (5.5)':'Tổng hợp quy mô CSHT (5.5)';
+    }
+    return r.receipt.purpose === 'RESULT' ? 'Đã chuyển kết quả' : r.approval?.revision === r.revision ? 'Đã duyệt phương án' : r.receipt.purpose === 'PREPARE' ? W.pendingRequests(r).length ? 'Đang chờ số liệu (' + W.pendingRequests(r).length + ' yêu cầu)' : 'Đang lập / sửa đề xuất' : 'Chờ xem xét đề xuất';
+  }
   function taskLabel(r) {
     const q = W.infoRequest(r, r.viewer), receipt = W.receiptFor(r, r.viewer);
-    if (q?.kind === 'CSHT_REVIEW') return ({DATA_ASSIGN:'Phân công rà soát hiện trạng CSHT',DATA_WORK:'Rà soát, đề xuất trang bị CSHT',DATA_REVIEW:q.approvedRevision===q.responseRevision?'Kết quả rà soát đã duyệt – chờ trả Ban KT':'Duyệt kết quả rà soát CSHT'})[q.receipt.purpose]+' · '+q.unit;
+    if(q?.receipt.purpose==='DATA_FORWARD')return 'Chuyển kết quả '+q.unit+' về PM Ban KT · Người chuyển: '+W.roles[q.receipt.from];
+    if (q?.kind === 'CSHT_REVIEW') return ({DATA_ASSIGN:'Chuyển / phân công rà soát hiện trạng CSHT',DATA_WORK:'Rà soát, đề xuất trang bị CSHT',DATA_REVIEW:q.approvedRevision===q.responseRevision?'Kết quả rà soát đã duyệt – chờ trả Ban KT':'Duyệt kết quả rà soát CSHT'})[q.receipt.purpose]+' · '+q.unit+' · Người chuyển: '+W.roles[q.receipt.from];
     return q ? ({ DATA_ASSIGN: 'Phân công cung cấp số liệu', DATA_WORK: 'Cung cấp số liệu hiện trạng', DATA_REVIEW: q.approvedRevision === q.responseRevision ? 'Số liệu đã duyệt – chờ gửi Ban KT' : 'Duyệt số liệu hiện trạng' })[q.receipt.purpose] + ' · ' + q.unit : receipt?.purpose === 'INFORMATION' ? 'Nhận thông tin – xem để biết' : own(r) ? state(r) : 'Chưa được giao nhiệm vụ xử lý';
   }
   function roleOptions(r) {
-    const option = key => '<option value="' + key + '"' + (key === r.viewer ? ' selected' : '') + '>' + esc(W.roles[key]) + '</option>';
-    return '<optgroup label="Lựa chọn PAKT, CN và quy mô">' + (W.isCSHT(r) ? ['pm','lead'] : ['pm','lead','khdt']).map(option).join('') + '</optgroup><optgroup label="Cung cấp số liệu hiện trạng – RACI bước 5">' + W.providersFor(r).flatMap(p => [p.lead, p.pm]).map(option).join('') + '</optgroup>';
+    const option = key => '<option value="' + key + '"' + (key === r.viewer ? ' selected' : '') + '>' + esc(W.roleLabel(r,key)) + '</option>';
+    return '<optgroup label="Lựa chọn PAKT, CN và quy mô">' + W.roleKeys(r).filter(key=>['pm','lead','khdt'].includes(key)).map(option).join('') + '</optgroup><optgroup label="Cung cấp số liệu hiện trạng – RACI bước 5">' + W.providersFor(r).flatMap(p => [p.lead, p.pm]).map(option).join('') + '</optgroup>';
   }
   function basisPicker(selected) {
     const plans = kh4.approvedPlans();
@@ -430,7 +476,7 @@
       'Thời hạn hoàn thành: ' + (formatDateVN(r.data.deadline) || 'Chưa xác định'),
       'Địa điểm / khu vực triển khai: ' + (r.data.location || 'Chưa xác định'),
       'Chi tiết đề xuất lựa chọn PAKT, CN và quy mô', 'Cần khảo sát',
-      ...(W.isCSHT(r) && W.cshtStage(r)==='SCALE' ? ['Tổng hợp quy mô CSHT phục vụ PTM (node chính) – Bước 5.5', ...r.requests.filter(q=>q.kind==='CSHT_REVIEW' && q.status==='RETURNED').map(q=>q.unit+': '+q.response.text+' (LĐ đơn vị đã duyệt phiên bản '+q.approvedRevision+')')] : []),
+      ...(W.isCSHT(r) && ['SCALE','STEP8'].includes(W.cshtStage(r)) ? ['Tổng hợp quy mô CSHT phục vụ PTM (node chính) – Bước 5.5', ...r.requests.filter(q=>q.kind==='CSHT_REVIEW' && q.status==='RETURNED' && q.responseRevision).map(q=>q.unit+': '+q.response.text+' ('+(q.approvedRevision===q.responseRevision?'LĐ đơn vị đã duyệt':'Kết quả đơn vị cung cấp')+' phiên bản '+q.responseRevision+')')] : []),
       'Tài liệu kèm theo: Báo cáo đề xuất và File danh mục lựa chọn PAKT, CN và quy mô.',
       r.approval?.revision === r.revision ? 'LĐ Ban KT đã duyệt nội dung phiên bản ' + r.revision : 'Dự thảo – chờ LĐ Ban KT xem xét, duyệt'];
   }
@@ -469,6 +515,8 @@
   let previewRecord = null;
   const previewKinds = { submission: 'Tờ trình', report: 'Báo cáo đề xuất', catalog: 'File danh mục' };
   function previewSubmission(kind = 'submission') {
+    const active=current(),task=active && W.infoRequest(active,active.viewer);
+    if(active && W.isCSHT(active) && (task || active.viewer==='lead' && active.receipt.purpose==='CSHT_REQUEST_REVIEW'))return preview('VB yêu cầu / phản hồi CSHT',cshtTaskPaper(active,task));
     const r = current(); if (!r) return;
     if (!edit(r) && !W.receiptFor(r, r.viewer)) return notify('Vai trò này chưa nhận hồ sơ', true);
     const snapshot = edit(r) ? { ...r, ...readForm(r) } : r;
@@ -517,21 +565,30 @@
     if (edit(r) || W.receiptFor(r, r.viewer)) html += button('Xem tờ trình/Báo cáo đề xuất/File danh mục', 'kh5.previewSubmission()');
     if (W.canApprove(r, r.viewer)) html += button('Duyệt', 'kh5.approve()') + button('Trả lại', "kh5.transfer('pm')", true, 'kh2-danger');
     if (q?.receipt.purpose === 'DATA_REVIEW') html += button('Duyệt', 'kh5.approveData()', W.canApproveData(r, r.viewer)) + button('Trả lại', "kh5.transfer('" + q.pm + "')", true, 'kh2-danger');
-    return html + (own(r) && r.receipt.purpose !== 'RESULT' || q ? button('Chuyển', 'kh5.transfer()', true, 'kh2-emphasis') : '') + button('Reset luồng', 'kh5.reset()');
+    return html + (W.canHandoffStep8(r,r.viewer) ? button('Chuyển bước 8','kh5.transfer()',true,'kh2-emphasis') : own(r) && !['RESULT','STEP8_ASSIGNMENT'].includes(r.receipt.purpose) || q ? button('Chuyển', 'kh5.transfer()', true, 'kh2-emphasis') : '') + button('Reset luồng', 'kh5.reset()');
+  }
+  function cshtTaskPaper(r,q) {
+    if(!q){const f=W.requestReviewFile(r);return f && W.receiptFor(r,r.viewer)?.files.includes(f.id)?f.html:'<p>Phiếu chuyển hiện tại chưa kèm văn bản yêu cầu.</p>';}
+    if(['DATA_REVIEW','DATA_FORWARD'].includes(q.receipt.purpose)){
+      const file=r.files.filter(f=>f.infoKind==='supply' && f.infoRequestId===q.id && q.receipt.files.includes(f.id)).at(-1);
+      return file?.html || '<h2>'+(q.kind==='CSHT_REVIEW'?'KẾT QUẢ RÀ SOÁT VÀ ĐỀ XUẤT CSHT':'PHẢN HỒI SỐ LIỆU HIỆN TRẠNG')+'</h2><p>'+esc(q.unit)+'</p><p style="white-space:pre-wrap">'+esc(q.response.text)+'</p><p>Phiên bản: '+q.responseRevision+'</p>';
+    }
+    const file=q.documents.find(f=>f.id===q.requestDocumentId && q.receipt.files.includes(f.id));
+    return '<p><b>Người chuyển:</b> '+esc(W.roles[q.receipt.from])+'</p><p style="white-space:pre-wrap">'+esc(q.receipt.note)+'</p>'+(file?.html || '<p>Yêu cầu cung cấp số liệu hiện trạng: '+esc(q.dossierName)+'</p>');
   }
   function render() {
     const r = current(); if (!r) return; showPage('kh5Page');
     const creating = r === creationDraft;
     const q = W.infoRequest(r, r.viewer), receipt = W.receiptFor(r, r.viewer), context = receipt || { note: 'Vai trò đang xem chưa nhận phiếu chuyển xử lý.' };
     page.innerHTML = header((creating ? 'Tạo đề xuất lựa chọn PAKT, CN và quy mô' : moduleTitle) + (r.basis ? ' - ' + r.basis.type : ''), actions(r), creating ? 'Tạo mới' : 'Chi tiết xử lý', true) + '<div class="khptm-rolebar"><label for="kh5Role">Vai trò test</label><select id="kh5Role" onchange="kh5.setRole(this.value)">' + roleOptions(r) + '</select><span class="right-note">' + esc(creating && r.viewer === 'pm' ? 'Lập đề xuất · chưa lưu hồ sơ' : taskLabel(r)) + '</span></div>' +
-      '<div id="kh5Feedback" hidden></div>' + section('Căn cứ', '<div class="kh2-info-grid"><div class="kh5-wide">' + (creating ? basisPicker(creationBasis) : '<label>KHPTM đã phê duyệt</label><div>' + esc(r.basis.title + ' · QĐ ' + r.basis.number) + '</div>') + '</div><div><label>Loại thiết bị</label><input value="' + esc(r.basis?.type || '') + '" readonly></div><div><label>Năm kế hoạch</label><input value="' + esc(r.basis?.year || '') + '" readonly></div></div>') +
-      (r.viewer === 'pm' ? form(r) : section('Preview văn bản', '<div class="khptm-doc-preview"><div class="khptm-paper">' + (!r.basis ? '<p>Chọn KHPTM đã phê duyệt để lập đề xuất và xem văn bản.</p>' : q ? q.receipt.purpose === 'DATA_REVIEW' ? '<h2>' + (q.kind==='CSHT_REVIEW'?'KẾT QUẢ RÀ SOÁT CSHT – ':'SỐ LIỆU HIỆN TRẠNG – ') + esc(q.unit) + '</h2><p>' + esc(q.dossierName) + '</p><p style="white-space:pre-wrap">' + esc(q.response.text) + '</p><p>Phiên bản số liệu: ' + q.receipt.responseRevision + '</p>' + q.response.files.map(id => '<p>' + esc(r.files.find(file => file.id === id)?.name || id) + '</p>').join('') : '<p><b>'+(q.kind==='CSHT_REVIEW'?'Yêu cầu rà soát CSHT:':'Yêu cầu cung cấp số liệu:')+'</b> ' + esc(q.dossierName) + '</p><p style="white-space:pre-wrap">' + esc(q.receipt.note) + '</p>' + r.basis.decision.html : W.isCSHT(r) && ['REQUEST','DISPATCH'].includes(W.cshtStage(r)) ? (visibleFiles(r).find(f=>f.id===W.cshtRequestFile(r)?.id)?.html || '<p>Chưa có văn bản yêu cầu rà soát CSHT.</p>') : visibleFiles(r).find(f => f.docType === 'submission')?.html || '<p>Phiếu chuyển hiện tại chưa kèm Tờ trình đề xuất.</p>') + '</div></div>')) +
+      '<div id="kh5Feedback" hidden></div>' + (r.viewer==='pm'?section('Căn cứ', '<div class="kh2-info-grid"><div class="kh5-wide">' + (creating ? basisPicker(creationBasis) : '<label>KHPTM đã phê duyệt</label><div>' + esc(r.basis.title + ' · QĐ ' + r.basis.number) + '</div>') + '</div><div><label>Loại thiết bị</label><input value="' + esc(r.basis?.type || '') + '" readonly></div><div><label>Năm kế hoạch</label><input value="' + esc(r.basis?.year || '') + '" readonly></div></div>'):'') +
+      (r.viewer === 'pm' ? form(r) : section('Preview văn bản', '<div class="khptm-doc-preview"><div class="khptm-paper">' + (!r.basis ? '<p>Chọn KHPTM đã phê duyệt để lập đề xuất và xem văn bản.</p>' : W.isCSHT(r) && (q || r.receipt.purpose==='CSHT_REQUEST_REVIEW') ? cshtTaskPaper(r,q) : q ? q.receipt.purpose === 'DATA_REVIEW' ? '<h2>' + (q.kind==='CSHT_REVIEW'?'KẾT QUẢ RÀ SOÁT CSHT – ':'SỐ LIỆU HIỆN TRẠNG – ') + esc(q.unit) + '</h2><p>' + esc(q.dossierName) + '</p><p style="white-space:pre-wrap">' + esc(q.response.text) + '</p><p>Phiên bản số liệu: ' + q.receipt.responseRevision + '</p>' + q.response.files.map(id => '<p>' + esc(r.files.find(file => file.id === id)?.name || id) + '</p>').join('') : '<p><b>'+(q.kind==='CSHT_REVIEW'?'Yêu cầu rà soát CSHT:':'Yêu cầu cung cấp số liệu:')+'</b> ' + esc(q.dossierName) + '</p><p style="white-space:pre-wrap">' + esc(q.receipt.note) + '</p>' + r.basis.decision.html : visibleFiles(r).find(f => f.docType === 'submission')?.html || '<p>Phiếu chuyển hiện tại chưa kèm Tờ trình đề xuất.</p>') + '</div></div>')) +
       '<div id="kh5Extended"></div>';
     renderExtended(r);
     if(r.feedback)paintFeedback(r.feedback.message,r.feedback.invalid);
   }
   function setRole(role) { const r = current(); if (r && W.roleKeys(r).includes(role)) { if (modal) hideTransferModal(); closeKHPTM2InfoModal(); if (edit(r)) { const input = readForm(r); try { W.saveDraft(r, r.viewer, input.data, input.rows); } catch (e) { return notify(e.message, true); } } r.feedback=null;r.viewer = role; r.tab = role === 'pm' ? 'files' : 'exchange'; render(); } }
-  function approve() { const r = current(); try { W.approve(r, r.viewer); const request=W.isCSHT(r) && W.cshtStage(r)==='REQUEST'; if(!request)refreshSubmission(r); log(r, request?'Duyệt yêu cầu rà soát CSHT phiên bản '+W.cshtRequestFile(r).version:'Duyệt phương án kỹ thuật, công nghệ và quy mô phiên bản ' + r.revision); render(); notify(request?'Đã duyệt yêu cầu; Chuyển về PM Ban KT để gửi đơn vị trực thuộc':'Đã duyệt phương án'); } catch (e) { notify(e.message,true); } }
+  function approve() { const r = current(); try { W.approve(r, r.viewer); const request=W.isCSHT(r) && r.receipt.purpose==='CSHT_REQUEST_REVIEW'; if(!request)refreshSubmission(r); log(r, request?'Duyệt văn bản yêu cầu phiên bản '+W.requestReviewFile(r).version:'Duyệt phương án kỹ thuật, công nghệ và quy mô phiên bản ' + r.revision); render(); notify(request?'Đã duyệt yêu cầu; dùng Chuyển để trả PM Ban KT':'Đã duyệt phương án'); } catch (e) { notify(e.message,true); } }
   function approveData() { const r = current(); try { W.approveData(r, r.viewer); log(r, 'Duyệt số liệu hiện trạng của ' + W.infoRequest(r, r.viewer).unit); render(); notify('Đã duyệt số liệu; dùng Chuyển để gửi Ban KT'); } catch (e) { notify(e.message,true); } }
   function reset() {
     const old = current(); if (!old) return; if (modal) hideTransferModal();
@@ -552,16 +609,20 @@
     if(kind==='request' && !save(true))return;r=current();
     const actor=r.viewer,q=W.infoRequest(r,actor),task=W.receiptFor(r,actor),revision=r.revision;
     const source=q?.documents.find(f=>f.id===q.requestDocumentId),previous=r.files.filter(f=>f.infoKind===kind && f.authorKey===actor && f.infoRequestId===q?.id && (!W.isCSHT(r) || kind!=='request' || W.cshtStage(r)!=='REQUEST' || f.cshtRequest)).at(-1);
-    const code=source?.infoCode || previous?.infoCode || '2.2';
+    const code=source?.infoCode || previous?.infoCode || '2.2',csht=W.isCSHT(r),review=q?.kind==='CSHT_REVIEW';
     const data=previous?structuredClone(previous.document):kind==='request'?{issuer:'TỔNG CÔNG TY HẠ TẦNG MẠNG',unit:(W.requestTargets(r).find(p=>W.coAllowed(r,actor).includes(p.lead)) || (W.isCSHT(r) && W.cshtStage(r)==='REQUEST' ? W.cshtUnit : null))?.unit || 'Ban KTM',basis:'KHPTM '+r.basis.type+' năm '+r.basis.year,planBasis:'QĐ '+r.basis.number+' ngày '+formatDateVN(r.basis.date),year:String(r.basis.year),date:new Date().toISOString().slice(0,10),deadline:r.data.deadline,contactUnit:'KT',contact:r.data.author,need:r.data.need,current:r.data.current,content:W.isCSHT(r) && W.cshtStage(r)==='REQUEST' ? 'Rà soát hiện trạng nguồn điện, điều hòa, không gian lắp đặt tại các node chính; đề xuất trang bị CSHT đáp ứng KHPTM '+r.basis.year+'.' : ''}:
       {issuer:q.unit,recipient1:'Ban KT',reportTo:'Ban KT',period:String(r.basis.year),date:new Date().toISOString().slice(0,10),deadline:source?.document.deadline || r.data.deadline,lines:Array.from({length:11},()=>({}))};
+    if(csht && !previous){Object.assign(data,{location:r.data.location});if(kind==='request'){data.unit=W.cshtUnit.unit;data.content='Rà soát hiện trạng nguồn điện, điều hòa, không gian lắp đặt tại các node chính; đề xuất CSHT đáp ứng KHPTM '+r.basis.year+'.';}else{data.requestReference=(source?.number?source.number+' – ':'')+(source?.name || q.receipt.note);data.content='';data.proposal='';}}
+    const renderHTML=csht?(data,kind)=>KHCSHTTemplate.html(data,kind,review):null;
     khInfo.openFor({key:r.id,kind,code,data,units:kind==='request'?W.requestTargets(r).map(p=>p.unit):undefined,receipt:{sender:W.roles[task.from],unit:q?.unit},
+      ...(csht?{fields:kind==='request'?KHCSHTTemplate.requestFields:KHCSHTTemplate.supplyFields(review),formTitle:kind==='request'?'Tạo VB yêu cầu cung cấp thông tin':'Tạo VB phản hồi',templateLabel:kind==='request'?'Yêu cầu cung cấp hiện trạng / rà soát, đề xuất CSHT phục vụ KHPTM':review?'Phản hồi kết quả rà soát hiện trạng và đề xuất CSHT phục vụ KHPTM':'Phản hồi số liệu hiện trạng phục vụ tính toán quy mô',renderHTML}:{}),
       canEdit:()=>current()===r && r.viewer===actor && r.revision===revision && W.receiptFor(r,actor)===task && infoPermission(r,kind),
       onSave:(data,kind,code)=>{
-        const html=kind==='request'?khInfo.requestHTML(data,code):khInfo.supplyHTML(data);
-        const blob=infoOffice(html),file=W.storeInfoDocument(r,actor,kind,code,data,{html,blob,mime:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',actor:W.roles[actor],time:now(),number:data.number,eoffice:data.eoffice,issuer:data.issuer,signer:data.signer || 'Chưa ký',group:kind==='request'?'VB yêu cầu cung cấp thông tin':'VB cung cấp thông tin'});
+        const html=renderHTML?renderHTML(data,kind):kind==='request'?khInfo.requestHTML(data,code):khInfo.supplyHTML(data);
+        const blob=infoOffice(html),file=W.storeInfoDocument(r,actor,kind,code,data,{html,blob,mime:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',actor:W.roles[actor],time:now(),number:data.number,eoffice:data.eoffice,issuer:data.issuer,signer:data.signer || (csht?'--':'Chưa ký'),group:kind==='request'?'VB yêu cầu cung cấp thông tin':csht?'VB phản hồi':'VB cung cấp thông tin'});
         file.name=(kind==='request'?'VB_yeu_cau_CCTT_':'VB_cung_cap_CCTT_')+r.basis.type.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^\w]+/g,'_')+'_'+code.replace('.','_')+'_'+actor+'_v'+file.version+'.docx';file.url=URL.createObjectURL(blob);
         const pending=exchangeDraft(r),ta=document.getElementById('kh5QuickExchange');if(ta)pending.text=ta.value;
+        if(csht && kind==='supply' && !pending.text.trim())pending.text=data.content+(data.proposal?'\nĐề xuất CSHT: '+data.proposal:'');
         pending.attachments=pending.attachments.filter(id=>{const f=r.files.find(f=>f.id===id);return !(f?.infoKind===kind && f.infoCode===code);});pending.attachments.push(file.id);
         log(r,'Lưu '+file.group+' · phiên bản '+file.version);closeKHPTM2InfoModal();r.tab='exchange';renderExtended(r);document.getElementById('kh5QuickExchange').focus();notify('Đã gắn văn bản vào nội dung trao đổi. Nhập nội dung rồi nhấn Gửi');
       }});
@@ -570,10 +631,8 @@
   function removePending(index) {const r=current(),d=exchangeDraft(r);if(!own(r)&&!W.receiptFor(r,r.viewer))return notify('Vai trò này chưa nhận nhiệm vụ',true);if(index==='upload'){if(d.file)URL.revokeObjectURL(d.file.url);d.file=null;}else d.attachments.splice(Number(index),1);renderExtended(r);}
   function renderExtended(r) {
     const host = document.getElementById('kh5Extended'); host.innerHTML = extTemplate.replaceAll('khptm2', 'kh5').replaceAll('switchKHPTM2ExtTab', 'kh5.extTab').replaceAll('sendKHPTM2Exchange', 'kh5.sendExchange').replaceAll('kh5ExchangeFileChanged', 'kh5.exchangeFileChanged');
-    // RACI 5.4: đơn vị trực thuộc ghi kết quả/đề xuất ở Trao đổi, kèm hồ sơ nếu có.
-    // Không dùng mẫu SOP1-CQ-1 (cáp quang) cho kết quả rà soát CSHT.
-    const kind=r.viewer==='pm'?'request':W.provider(r.viewer)?.pm===r.viewer && !(W.isCSHT(r) && r.viewer===W.cshtUnit.pm)?'supply':null;
-    if(kind){const btn=document.createElement('button');btn.className='small kh-info-create';btn.textContent=W.isCSHT(r) && W.cshtStage(r)==='REQUEST' && kind==='request'?'Tạo VB yêu cầu rà soát CSHT':kind==='request'?'Tạo VB yêu cầu cung cấp thông tin':'Tạo VB cung cấp thông tin';btn.disabled=kind==='request'?!edit(r):!infoPermission(r,kind);btn.title=btn.disabled?'Chưa nhận nhiệm vụ tạo văn bản này':'';btn.onclick=()=>openInfo(kind);host.querySelector('.pm-ext-caption').after(btn);}
+    const kind=r.viewer==='pm'?'request':W.provider(r.viewer)?.pm===r.viewer?'supply':null;
+    if(kind){const btn=document.createElement('button');btn.className='small kh-info-create';btn.textContent=kind==='request'?'Tạo VB yêu cầu cung cấp thông tin':W.isCSHT(r)?'Tạo VB phản hồi':'Tạo VB cung cấp thông tin';btn.disabled=kind==='request'?!edit(r):!infoPermission(r,kind);btn.title=btn.disabled?'Chưa nhận nhiệm vụ tạo văn bản này':'';btn.onclick=()=>openInfo(kind);host.querySelector('.pm-ext-caption').after(btn);}
     const row = (file, i, action) => '<tr><td class="center">' + i + '</td><td class="center">' + (file.signatures?.length || file.signed ? '☒' : '☐') + '</td><td class="center"><input type="checkbox" checked disabled></td><td class="center"><input type="checkbox"' + (['submission', 'report'].includes(file.docType) ? ' checked' : '') + ' disabled></td><td class="center"><input type="checkbox"' + (!['submission', 'report'].includes(file.docType) ? ' checked' : '') + ' disabled></td><td>' + esc(file.number || '') + '</td><td>' + esc(file.eoffice || '') + '</td><td>' + esc(file.issuer || r.data.unit) + '</td><td>' + esc(file.signer || '--') + '</td><td>' + esc(file.group || (file.docType === 'submission' ? 'Tờ trình đề xuất' : file.docType === 'report' ? 'Báo cáo đề xuất' : file.docType === 'catalog' ? 'File danh mục' : 'Hồ sơ liên quan')) + '</td><td><span class="pm-ext-file" onclick="' + action + '">' + esc(file.name) + '</span></td><td>' + esc(file.actor || '') + '</td><td>' + esc(file.time || '') + '</td><td></td><td></td><td>' + button('Xem', action, true, 'pm-ext-action') + (file.url ? ' <a class="pm-ext-action" href="' + file.url + '" download="' + esc(file.name) + '">Tải</a>' : '') + '</td></tr>';
     host.querySelector('.pm-ext-table tbody').innerHTML = visibleFiles(r).map((f, i) => row(f, i + 1, 'kh5.previewReceivedFile(' + i + ')')).join('');
     if (!r.submission && !r.files.some(f => f.generated) && edit(r)) {
@@ -590,7 +649,7 @@
     khInfo.renderExchangeInto(host.querySelector('#kh5Exchange'), r.exchange);
     const draft = exchangeDraft(r);
     const ta = host.querySelector('#kh5QuickExchange'); ta.value = draft.text; ta.oninput = () => { draft.text = ta.value; };
-    if (W.canProvide(r,r.viewer) && W.infoRequest(r,r.viewer)?.kind === 'CSHT_REVIEW') ta.placeholder = 'Nhập kết quả rà soát hiện trạng, đề xuất trang bị CSHT; đính kèm hồ sơ nếu có, rồi nhấn Gửi để trình LĐ đơn vị duyệt.';
+    if (W.canProvide(r,r.viewer) && W.infoRequest(r,r.viewer)?.kind === 'CSHT_REVIEW') ta.placeholder = 'Nhập kết quả rà soát, đề xuất CSHT hoặc tạo VB phản hồi; đính kèm hồ sơ rồi nhấn Gửi.';
     const canExchange = own(r) || !!W.receiptFor(r, r.viewer); ta.disabled = !canExchange;
     host.querySelector('#kh5ExchangeFile').disabled = !canExchange;
     host.querySelector('[onclick="kh5.sendExchange()"]')?.toggleAttribute('disabled', !canExchange);
@@ -623,7 +682,7 @@
       W.saveResponse(r, r.viewer, d.text.trim() || q.response.text, r.files.filter(f => f.infoRequestId === q.id && (!f.infoKind || f.posted || documents.includes(f))).map(f => f.id)); log(r, 'Cung cấp số liệu hiện trạng – ' + q.unit + ' – phiên bản ' + q.responseRevision);
     }
     documents.forEach(file=>file.posted=true);
-    r.exchange.unshift({ actor: W.roles[r.viewer], requestId: q?.id, text: d.text.trim(), time: now(), attachments: [...documents.map(file=>({kind:file.infoKind,code:file.infoCode,name:file.name,id:file.id,doc:{document:structuredClone(file.document),version:file.version}})),...(d.file?[{...d.file}]:[])] }); r.drafts[r.viewer] = { text: '', file: null, attachments:[] }; renderExtended(r);notify('Đã gửi nội dung trao đổi kèm văn bản'); } catch(error) {notify(error.message,true);} }
+    r.exchange.unshift({ actor: W.roles[r.viewer], requestId: q?.id, text: d.text.trim(), time: now(), attachments: [...documents.map(file=>({kind:file.infoKind,code:file.infoCode,name:file.name,id:file.id,html:W.isCSHT(r)?file.html:undefined,doc:{document:structuredClone(file.document),version:file.version}})),...(d.file?[{...d.file}]:[])] }); r.drafts[r.viewer] = { text: '', file: null, attachments:[] }; renderExtended(r);notify('Đã gửi nội dung trao đổi kèm văn bản'); } catch(error) {notify(error.message,true);} }
   function refreshSubmission(r) { const old = r.submission; if (!old) return; const html = paper(r, 'submission'), blob = KHStep5Office.docx(paragraphs(r, 'submission')); old.blob = blob; old.url = URL.createObjectURL(blob); old.html = html; }
   function transferFile(r, file) {
     const row = sharedTransferFileRow.cloneNode(true); row.removeAttribute('id');
@@ -677,21 +736,21 @@
   function transfer(preset) {
     const r = current(); if (!own(r)) return notify('Bạn không được giao xử lý chính');
     if (edit(r)) { if (!save(true)) return; render(); }
-    const allowed = W.allowed(r, r.viewer); if (!allowed.length) return notify(W.isCSHT(r) && W.cshtStage(r)==='REQUEST' ? 'Tạo VB yêu cầu rà soát CSHT tại Thông tin mở rộng trước khi trình LĐ Ban KT duyệt' : 'Chưa có hướng chuyển thuộc nhiệm vụ hiện tại', true);
+    const allowed = W.allowed(r, r.viewer); if (!allowed.length) return notify('Chưa có hướng chuyển thuộc nhiệm vụ hiện tại', true);
     const requestDoc=r.files.filter(f=>f.infoKind==='request' && f.authorKey===r.viewer).at(-1);
-    if(!preset && edit(r) && requestDoc){const recipient=W.providers.find(p=>W.documentTargets(requestDoc).includes(p.unit));if(recipient && allowed.includes(recipient.lead))preset=recipient.lead;}
+    if(!preset && edit(r) && requestDoc){const recipient=W.providersFor(r).find(p=>W.documentTargets(requestDoc).includes(p.unit));if(recipient && allowed.includes(recipient.lead))preset=recipient.lead;}
     const q = W.infoRequest(r, r.viewer), taskReceipt = W.receiptFor(r, r.viewer);
     const panel = document.getElementById('routePanelFiles'), box = document.getElementById('transferModal'); modal = { id: r.id, actor: r.viewer, receipt: taskReceipt, requestId: q?.id, responseRevision: q?.responseRevision, revision: r.revision, allowed,
       filesHtml: panel.innerHTML, cfg: currentTransferCfg, action: pendingTransferAction, classes: box.className, summary: box.querySelector('.route-opinion-summary').innerHTML };
     box.classList.add('kh4-route');
     box.querySelector('.route-opinion-summary').innerHTML = '<div><b>Tổng hợp ý kiến</b></div>' + r.exchange.slice().reverse().map(x => '<div class="route-opinion-row"><b>' + esc(x.actor) + '</b><div class="mini">' + esc(x.time) + ' · ' + esc(x.text) + '</div></div>').join('');
     document.getElementById('routeOpinionFile').value = ''; 
-    Object.entries(W.roles).forEach(([key, title]) => { if (!routeRecipients.some(x => x.id === 'kh5_' + key)) routeRecipients.push({ id: 'kh5_' + key, name: title, title, unit: W.provider(key)?.unit || (key === 'khdt' ? 'Ban KHĐT' : key === 'pm' || key === 'lead' ? 'Ban KT' : 'VNPT Net') }); });
+    Object.entries(W.roles).forEach(([key]) => {const title=W.roleLabel(r,key),existing=routeRecipients.find(x=>x.id==='kh5_'+key);if(existing){existing.name=existing.title=title;}else routeRecipients.push({ id: 'kh5_' + key, name: title, title, unit: W.provider(key)?.unit || (key === 'khdt' ? 'Ban KHĐT' : key === 'pm' || key === 'lead' ? 'Ban KT' : 'VNPT Net') }); });
     const rolePermissions = { main: allowed.map(key => 'kh5_' + key), co: W.coAllowed(r, r.viewer).map(key => 'kh5_' + key), view: W.viewAllowed(r, r.viewer).map(key => 'kh5_' + key) };
     pendingTransferAction = 'kh5Transfer'; currentTransferCfg = { title: q ? 'Chuyển yêu cầu / số liệu hiện trạng – ' + q.unit : 'Chuyển đề xuất lựa chọn PAKT, CN và quy mô', main: 'kh5_' + (preset && allowed.includes(preset) ? preset : q?.receipt.purpose === 'DATA_REVIEW' && allowed.includes('pm') ? 'pm' : allowed[0]), co: [], send: !W.isCSHT(r) && r.viewer !== 'khdt' ? ['kh5_khdt'] : [], allowed: [...new Set(Object.values(rolePermissions).flat())], rolePermissions };
     const files = visibleFiles(r); modal.files = files;
     panel.innerHTML = files.map(file => transferFile(r, file)).join('');
-    document.getElementById('transferNote').value = q ? q.response.text || q.receipt.note : exchangeDraft(r).text || (W.isCSHT(r) && W.cshtStage(r)==='DISPATCH' ? W.cshtRequestFile(r)?.document.content : requestDoc?.document.content) || ''; document.getElementById('routeReceiverSearch').value = '';
+    document.getElementById('transferNote').value = q ? q.response.text || q.receipt.note : W.canHandoffStep8(r,r.viewer)?'Chuyển hồ sơ quy mô CSHT đã duyệt sang bước (8), chuẩn bị giao nhiệm vụ lập DAĐT/BCĐT, KHLCNT đối với dự án cấp TCT.':exchangeDraft(r).text || requestDoc?.document.content || ''; document.getElementById('routeReceiverSearch').value = '';
     renderRouteRecipients(); switchRouteTab('files'); document.getElementById('transferModal').classList.add('show');
   }
   const oldHide = hideTransferModal;
