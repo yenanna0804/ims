@@ -56,6 +56,14 @@ Hoàn thành tổng hợp quy mô 5.5 thì chuyển hồ sơ sang bước (8), c
 
 ## Tài liệu và kiểm tra
 
+### SOP 1 I.1 bước 1 — Thông báo/Hướng dẫn KHPTM
+
+RACI của Core di động, Vô tuyến, BRCĐ và CSHT: Tập đoàn AR; Ban KT C,I. Đầu ra bước 1 là hướng dẫn XD KHPTM TĐ, không phải KHPTM đã phê duyệt hoặc VB GNV lập dự án. QĐ 719/QĐ-VNPT-CN-CLSP-KHĐT là căn cứ quy trình, không giả làm hướng dẫn hàng năm. Các nhánh cung cấp số liệu Ban KTM/NetX/TTP nằm ở bước 2; không bắt buộc đi qua trong bước 1.
+
+Chỉ cập nhật `khptm-step1.js` và markup/điểm nối riêng của Thông báo/Hướng dẫn KHPTM. Hướng dẫn TĐ được lập, trình LĐ TĐ ký rồi Văn thư TĐ ban hành; nhánh Ban KT góp ý là tùy chọn. Giữ phương án PM Ban KT ghi nhận VB TĐ đã ký/ban hành ngoài hệ thống và byte file gốc. Sau khi PM Ban KT nhận hướng dẫn đã ban hành mới có Giao nhiệm vụ; nút mở hồ sơ con lập Tờ trình và VB GNV TCT, trình LĐ Ban KT ký Tờ trình → LĐTCT ký VB GNV → Văn thư TCT ban hành/chuyển đơn vị. Liên kết số GNV về nguồn, không tạo lại hồ sơ con khi nhấn lần nữa. Không đổi các luồng đã chốt ở bước 2, thẩm định/rà soát, bước 5 hoặc các module khác.
+
+Các màn PM, lãnh đạo, văn thư giữ layout và Thông tin mở rộng chung. Lãnh đạo chỉ preview/ý kiến/ký theo nguồn và nhiệm vụ; văn thư chỉ nhập metadata ban hành của văn bản đã ký. Không cấp quyền từ Vai trò test. Kiểm tra `tests/khptm-step1.test.cjs` cùng các kiểm thử cũ và UI preview.
+
 Đối chiếu “Gỡ băng buổi 1”, “gỡ băng buổi 2” và các quy trình/biểu mẫu khi làm nghiệp vụ mới; ưu tiên các nội dung khách hàng đã chốt trực tiếp trong phiên làm việc.
 
 Luồng thẩm định có quyền sửa theo nhiệm vụ, khác với rà soát chỉ xem. Không tự áp quy tắc rà soát cho thẩm định nếu chưa được chốt. NET ghi nhận văn bản TĐ đã ký/ban hành ngoài OnePMS không trình ký lại; PDF scan giữ nguyên byte khi nhập metadata ban hành.

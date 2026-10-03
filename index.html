@@ -420,11 +420,8 @@
     <div><label>Trạng thái</label><select><option>Tất cả</option><option>Dự thảo</option><option>Đang trình ký</option><option>Chờ ban hành</option><option>Đã ban hành</option></select></div>
   </div></div>
   <div class="section"><h3>Danh sách hồ sơ</h3><div class="body">
-    <div class="khptm-note"><b>Đầu vào:</b> Văn bản/Hướng dẫn của Tập đoàn đã ban hành. <b>Đầu ra:</b> Văn bản GNV phối hợp XD KHPTM của TCT. Văn bản Tập đoàn chỉ là căn cứ, không ký lại trên NET.</div>
-    <table><thead><tr><th width="45">STT</th><th>Năm KH</th><th>Tên hướng dẫn/GNV</th><th width="145">Mảng KHPTM</th><th width="125">Hạn thực hiện</th><th width="160">Văn bản TCT</th><th width="140">Trạng thái</th><th width="90">Thao tác</th></tr></thead><tbody>
-      <tr><td class="center">1</td><td class="center">2027</td><td><span class="khptm-list-title" onclick="openKHPTMProcess('K1')">Giao nhiệm vụ phối hợp xây dựng KHPTM năm 2027</span><div class="mini">Căn cứ Văn bản Tập đoàn số 719/QĐ-VNPT-CN-CLSP-KHĐT và văn bản hướng dẫn hàng năm</div></td><td>Core · Vô tuyến · BRCĐ · CSHT</td><td class="center">20/10/2026</td><td class="center">--</td><td><span class="badge borange">Dự thảo</span></td><td class="center"><button class="small" onclick="openKHPTMProcess('K1')">Mở</button></td></tr>
-      <tr><td class="center">2</td><td class="center">2026</td><td><span class="khptm-list-title" onclick="openKHPTMProcess('DONE')">Giao nhiệm vụ phối hợp xây dựng KHPTM năm 2026</span></td><td>Core · Vô tuyến</td><td class="center">20/10/2025</td><td class="center">812/VNPT Net-KT</td><td><span class="badge bgreen">Đã ban hành</span></td><td class="center"><button class="small" onclick="openKHPTMProcess('DONE')">Xem</button></td></tr>
-    </tbody></table>
+    <div class="khptm-note"><b>Bước 1:</b> Hướng dẫn XD KHPTM của Tập đoàn (TĐ AR; Ban KT C,I). Sau ban hành, PM Ban KT lập hồ sơ GNV phối hợp XD KHPTM của TCT. Có thể ghi nhận văn bản TĐ đã ban hành ngoài hệ thống.</div>
+    <table><thead><tr><th width="45">STT</th><th>Năm KH</th><th>Tên hướng dẫn/GNV</th><th width="145">Mảng KHPTM</th><th width="125">Hạn thực hiện</th><th width="160">Văn bản TCT</th><th width="140">Trạng thái</th><th width="90">Thao tác</th></tr></thead><tbody id="kh1ListRows"></tbody></table>
   </div></div>
 </section>
 
@@ -2257,164 +2254,8 @@ function issueKHPTM2(){
 
 
 // ================= KHPTM - THONG BAO/HUONG DAN KHPTM =================
-let khptmRole='Chuyên viên KHPTM';
-let khptmStep='K1';
-let khptmSigned=false;
-let khptmUnitLeaderSigned=false;
-let khptmHistory=[{time:'30/09/2026 09:00',actor:'Hệ thống',text:'Khởi tạo hồ sơ Thông báo/Hướng dẫn KHPTM 2027 từ văn bản Tập đoàn đã ban hành.'}];
-let khptmExchange=[];
-let khptmIssue={number:'',suffix:'KT',date:'2026-10-01',eoffice:'',file:'VB_GNV_phoi_hop_XD_KHPTM_2027_da_ky.pdf'};
-const KHPTM_STATES={
- K1:{role:'Chuyên viên KHPTM',name:'Lập hồ sơ TCT',status:'Dự thảo'},
- K2:{role:'LĐ Ban chủ trì',name:'Xem xét hồ sơ',status:'Chờ LĐ Ban chủ trì'},
- K3:{role:'LĐTCT',name:'Ký Văn bản GNV',status:'Chờ LĐTCT ký'},
- K4:{role:'Văn thư',name:'Cấp số / Ban hành',status:'Chờ ban hành'},
- DONE:{role:'Văn thư',name:'Văn bản GNV đã ban hành',status:'Đã ban hành'}
-};
-function openKHPTMModule(){document.querySelectorAll('.nav .item').forEach(x=>x.classList.remove('active'));document.getElementById('nav-khptm')?.classList.add('active');showPage('khptm-list')}
-function openKHPTMCreate(){khptmStep='K1';khptmRole='Chuyên viên KHPTM';khptmSigned=false;khptmUnitLeaderSigned=false;khptmHistory=[{time:new Date().toLocaleString('vi-VN',{hour12:false}),actor:'Hệ thống',text:'Tạo mới hồ sơ Thông báo/Hướng dẫn KHPTM.'}];khptmExchange=[];openKHPTMProcess('K1')}
-function openKHPTMProcess(step){khptmStep=step||khptmStep;khptmRole=KHPTM_STATES[khptmStep]?.role||'Chuyên viên KHPTM';document.querySelectorAll('.nav .item').forEach(x=>x.classList.remove('active'));document.getElementById('nav-khptm')?.classList.add('active');showPage('khptm-process');renderKHPTM()}
-function resetKHPTMFlow(){khptmStep='K1';khptmRole='Chuyên viên KHPTM';khptmSigned=false;khptmUnitLeaderSigned=false;khptmIssue={number:'',suffix:'KT',date:'2026-10-01',eoffice:'',file:'VB_GNV_phoi_hop_XD_KHPTM_2027_da_ky.pdf'};khptmHistory=[{time:new Date().toLocaleString('vi-VN',{hour12:false}),actor:'Hệ thống',text:'Reset luồng về bước lập hồ sơ.'}];khptmExchange=[];renderKHPTM();toast('Đã reset luồng KHPTM')}
-function switchKHPTMRole(role){khptmRole=role;renderKHPTM()}
-function khptmLog(actor,text){khptmHistory.unshift({time:new Date().toLocaleString('vi-VN',{hour12:false}),actor,text});renderKHPTMHistory()}
-function khptmSummaryHtml(){return `<div class="review-grid"><div class="review-item"><div class="k">Tên hướng dẫn/GNV</div><div class="v">Giao nhiệm vụ phối hợp xây dựng KHPTM năm 2027</div></div><div class="review-item"><div class="k">Năm kế hoạch</div><div class="v">2027</div></div><div class="review-item"><div class="k">Mảng KHPTM</div><div class="v">Core · Vô tuyến · BRCĐ · CSHT</div></div><div class="review-item"><div class="k">Hạn thực hiện</div><div class="v">20/10/2026</div></div><div class="review-item"><div class="k">Văn bản TĐ căn cứ</div><div class="v">719/QĐ-VNPT-CN-CLSP-KHĐT</div></div><div class="review-item"><div class="k">Output</div><div class="v">VB GNV phối hợp XD KHPTM của TCT</div></div></div>`}
-function renderKHPTMTopActions(){
-  const h=document.getElementById('khptmTopActions');
-  if(!h)return;
-  let html='';
-  if(khptmRole==='Chuyên viên KHPTM'&&khptmStep==='K1'){
-    html+='<button onclick="toast(\'Đã lưu nháp hồ sơ KHPTM\')">Lưu nháp</button>';
-    html+='<button onclick="openKHPTMPreview(\'submission\')">Xem Tờ trình LĐ TCT</button>';
-    html+='<button onclick="openKHPTMPreview(\'gnv\')">Xem dự thảo VB GNV</button>';
-    html+='<button class="khptm-emphasis" onclick="openKhptmTransfer(\'khptmSubmitUnitLeader\')">Chuyển</button>';
-  }else if(khptmRole==='LĐ Ban chủ trì'&&khptmStep==='K2'){
-    html+='<button onclick="openKHPTMPreview(\'submission\')">Xem Tờ trình LĐ TCT</button>';
-    html+='<button onclick="openKHPTMPreview(\'gnv\')">Xem dự thảo VB GNV</button>';
-    html+='<button class="khptm-danger" onclick="khptmReturnToSpecialist()">Trả lại</button>';
-    html+=khptmUnitLeaderSigned
-      ? '<button class="khptm-emphasis" onclick="openKhptmTransfer(\'khptmSubmitLDTCT\')">Chuyển</button>'
-      : '<button class="khptm-emphasis" onclick="khptmSignSubmissionByUnitLeader()">Ký số Tờ trình</button>';
-  }else if(khptmRole==='LĐTCT'&&khptmStep==='K3'){
-    html+='<button onclick="openKHPTMPreview(\'submission\')">Xem Tờ trình LĐ TCT</button>';
-    html+='<button onclick="openKHPTMPreview(\'gnv\')">Xem VB GNV</button>';
-    html+='<button class="khptm-danger" onclick="khptmReturnToSpecialist()">Trả lại</button>';
-    html+=khptmSigned
-      ? '<button class="khptm-emphasis" onclick="openKhptmTransfer(\'khptmToClerk\')">Chuyển</button>'
-      : '<button class="khptm-emphasis" onclick="khptmSignByLDTCT()">Ký số VB GNV</button>';
-  }else if(khptmRole==='Văn thư'&&khptmStep==='K4'){
-    html+='<button onclick="openKHPTMPreview(\'gnv\')">Xem văn bản đã ký</button>';
-    html+='<button class="khptm-emphasis" onclick="issueKHPTM()">Ban hành</button>';
-  }else if(khptmRole==='Văn thư'&&khptmStep==='DONE'){
-    html+='<button onclick="openKHPTMPreview(\'gnv\')">Xem văn bản</button>';
-    html+='<button class="khptm-emphasis" onclick="openKhptmTransfer(\'khptmDistribute\')">Chuyển đơn vị thực hiện</button>';
-  }
-  h.innerHTML=html;
-}
-function renderKHPTM(){const sel=document.getElementById('khptmRole');if(sel)sel.value=khptmRole;['khptmPanelSpecialist','khptmPanelUnitLeader','khptmPanelLDTCT','khptmPanelClerk'].forEach(id=>document.getElementById(id)?.classList.remove('active'));const map={'Chuyên viên KHPTM':'khptmPanelSpecialist','LĐ Ban chủ trì':'khptmPanelUnitLeader','LĐTCT':'khptmPanelLDTCT','Văn thư':'khptmPanelClerk'};document.getElementById(map[khptmRole])?.classList.add('active');renderKHPTMTopActions();renderKHPTMSpecialist();renderKHPTMUnitLeader();renderKHPTMLDTCT();renderKHPTMClerk();renderKHPTMExtended();renderKHPTMHistory();renderKHPTMExchange()}
-function renderKHPTMFlow(){const idx={K1:0,K2:1,K3:2,K4:3,DONE:4}[khptmStep]??0;const nodes=[['1','Ghi nhận VB TĐ & lập hồ sơ','Chuyên viên'],['2','Xem xét/Trình tiếp','LĐ Ban chủ trì'],['3','Ký VB GNV','LĐTCT'],['4','Cấp số/Ban hành','Văn thư'],['✓','Phát hành','Đơn vị phối hợp']];document.getElementById('khptmFlowDiagram').innerHTML=nodes.map((n,i)=>`<div class="flow-node ${i<idx?'done':''} ${i===idx?'current':''}"><div class="circle">${n[0]}</div><div class="name">${n[1]}</div><div class="role">${n[2]}</div></div>`).join('')}
-function renderKHPTMSpecialist(){const h=document.getElementById('khptmPanelSpecialist');if(!h)return;if(khptmStep!=='K1'){h.innerHTML=`<div class="section"><h3>Hồ sơ Thông báo/Hướng dẫn KHPTM</h3><div class="body">${khptmSummaryHtml()}<div class="gnv-viewonly-note">Hồ sơ đã chuyển sang bước xử lý tiếp theo. Chuyên viên theo dõi trạng thái, tài liệu tại Thông tin mở rộng và lịch sử xử lý.</div></div></div>`;return}h.innerHTML=`<div class="section"><h3>1. Thông tin Thông báo/Hướng dẫn KHPTM</h3><div class="body"><div class="grid"><div><label>Tên hướng dẫn/GNV <span class="req">*</span></label><input value="Giao nhiệm vụ phối hợp xây dựng KHPTM năm 2027"></div><div><label>Năm kế hoạch <span class="req">*</span></label><input value="2027"></div><div><label>Hạn lập/thực hiện <span class="req">*</span></label><input type="date" value="2026-10-20"></div><div><label>Mảng KHPTM</label><select><option selected>Core + Vô tuyến + BRCĐ + CSHT</option><option>Core di động</option><option>Vô tuyến</option><option>BRCĐ</option><option>CSHT</option></select></div><div style="grid-column:1/-1"><label>Trích yếu nội dung</label><textarea>Giao nhiệm vụ các đơn vị phối hợp cung cấp thông tin và xây dựng KHPTM năm 2027 theo hướng dẫn của Tập đoàn.</textarea></div></div></div></div><div class="section"><h3>2. Nội dung giao nhiệm vụ phối hợp</h3><div class="body"><div class="grid two"><div><label>Đơn vị nhận/phối hợp</label><div class="khptm-unit-tags"><span class="khptm-unit-tag">Ban KT</span><span class="khptm-unit-tag">Ban KTM</span><span class="khptm-unit-tag">Các NetX</span><span class="khptm-unit-tag">VNPT TTP/VNP/IT</span></div><div class="hint">Danh sách chính thức sẽ lấy theo cấu hình/biểu mẫu được duyệt.</div></div><div><label>Hạn thực hiện</label><input type="date" value="2026-10-20"></div><div style="grid-column:1/-1"><label>Nội dung giao nhiệm vụ</label><textarea>Phối hợp cung cấp thông tin, số liệu và thực hiện các nội dung phục vụ xây dựng KHPTM theo phân công và hướng dẫn của Tập đoàn.</textarea></div></div></div></div>`}
-function khptmLeaderSigningPreviewHtml(role){
-  const isUnitLeader=role==='LĐ Ban chủ trì';
-  const signed=isUnitLeader?khptmUnitLeaderSigned:khptmSigned;
-  const docLabel=isUnitLeader?'Tờ trình':'Văn bản GNV phối hợp XD KHPTM';
-  let paper='';
-  if(isUnitLeader){
-    paper='<div style="text-align:center"><b>TỔNG CÔNG TY HẠ TẦNG MẠNG - VNPT NET</b></div>'
-      +'<p>Số: .../TTr-VNPT Net-KT</p>'
-      +'<h2>TỜ TRÌNH</h2>'
-      +'<h3>Về việc ban hành Văn bản giao nhiệm vụ phối hợp xây dựng KHPTM năm 2027</h3>'
-      +'<p><b>Kính trình:</b> Lãnh đạo Tổng công ty.</p>'
-      +'<p>Căn cứ văn bản hướng dẫn của Tập đoàn, đơn vị chủ trì trình Lãnh đạo Tổng công ty xem xét ban hành Văn bản giao nhiệm vụ phối hợp xây dựng KHPTM năm 2027.</p>'
-      +'<div class="sign"><b>LÃNH ĐẠO BAN CHỦ TRÌ</b><br><br><br>'+(signed?'(Đã ký số)':'(Chờ ký)')+'</div>';
-  }else{
-    paper='<div style="text-align:center"><b>TỔNG CÔNG TY HẠ TẦNG MẠNG - VNPT NET</b></div>'
-      +'<p>Số: .../VNPT Net-KT</p>'
-      +'<h2>VĂN BẢN GIAO NHIỆM VỤ</h2>'
-      +'<h3>Phối hợp xây dựng Kế hoạch phát triển mạng năm 2027</h3>'
-      +'<p><b>Kính gửi:</b> Ban KT; Ban KTM; các NetX; VNPT TTP/VNP/IT và các đơn vị liên quan.</p>'
-      +'<p>Căn cứ văn bản hướng dẫn của Tập đoàn, Tổng công ty giao các đơn vị phối hợp cung cấp thông tin, số liệu và triển khai xây dựng KHPTM năm 2027.</p>'
-      +'<p><b>Hạn thực hiện:</b> 20/10/2026.</p>'
-      +'<div class="sign"><b>TỔNG GIÁM ĐỐC</b><br><br><br>'+(signed?'(Đã ký số)':'(Chờ ký)')+'</div>';
-  }
-  return '<div class="section khptm-leader-signing-preview">'
-    +'<h3>Văn bản trình ký</h3>'
-    +'<div class="body">'
-    +'<div class="khptm-note" style="margin-bottom:10px"><b>Văn bản cần ký:</b> '+docLabel+'</div>'
-    +'<div class="khptm-doc-preview"><div class="khptm-paper">'+paper+'</div></div>'
-    +(signed?'<div class="khptm-output" style="margin-top:8px"><b>Trạng thái:</b> Đã ký số.</div>':'')
-    +'</div></div>';
-}
-function renderKHPTMUnitLeader(){
-  const h=document.getElementById('khptmPanelUnitLeader');
-  if(!h)return;
-  h.innerHTML=khptmLeaderSigningPreviewHtml('LĐ Ban chủ trì');
-}
-function khptmSignSubmissionByUnitLeader(){
-  if(khptmStep!=='K2'||khptmRole!=='LĐ Ban chủ trì')return toast('Hồ sơ không ở bước LĐ Ban chủ trì');
-  khptmUnitLeaderSigned=true;
-  khptmLog('LĐ Ban chủ trì','Đã ký số Tờ trình về việc ban hành GNV phối hợp XD KHPTM');
-  renderKHPTM();
-  toast('Đã ký số Tờ trình');
-}
-function renderKHPTMLDTCT(){
-  const h=document.getElementById('khptmPanelLDTCT');
-  if(!h)return;
-  h.innerHTML=khptmLeaderSigningPreviewHtml('LĐTCT');
-}
-function renderKHPTMClerk(){
-  const h=document.getElementById('khptmPanelClerk');
-  if(!h)return;
-  if(khptmStep==='DONE'){
-    h.innerHTML='<div class="section"><h3>Văn bản đã ban hành</h3><div class="body">'
-      +khptmSummaryHtml()
-      +'<div class="khptm-output"><b>'+(khptmIssue.number||'812')+'/VNPT Net-'+khptmIssue.suffix+'</b> · '+formatDateVN(khptmIssue.date)+' · eOffice '+(khptmIssue.eoffice||'698321')+'<br>Output chính: Văn bản GNV phối hợp XD KHPTM của TCT.</div>'
-      +'</div></div>';
-    return;
-  }
-  h.innerHTML='<div class="section"><h3>Cấp số, hoàn thiện thể thức và ban hành</h3><div class="body">'
-    +'<div class="khptm-note">Văn bản đã được LĐTCT ký. Văn thư thực hiện nghiệp vụ cấp số/ngày/eOffice và phát hành; không chỉnh sửa nội dung nghiệp vụ đã duyệt.</div>'
-    +'<div class="khptm-issue-grid">'
-    +'<div><label>Số văn bản <span class="req">*</span></label><input id="khptmIssueNumber" value="812"></div>'
-    +'<div><label>Hậu tố</label><input id="khptmIssueSuffix" value="KT"></div>'
-    +'<div><label>Ngày ban hành <span class="req">*</span></label><input id="khptmIssueDate" type="date" value="2026-10-01"></div>'
-    +'<div><label>Số eOffice/VBKS</label><input id="khptmIssueEoffice" value="698321"></div>'
-    +'<div style="grid-column:1/-1"><label>Nơi nhận</label><textarea id="khptmIssueRecipients">Ban KT; Ban KTM; các NetX; VNPT TTP/VNP/IT và các đơn vị liên quan theo phân công.</textarea></div>'
-    +'</div></div></div>';
-}
-function khptmExtendedHtml(){
-  const canEdit=khptmRole==='Chuyên viên KHPTM' && khptmStep==='K1';
-  const isLeader=khptmRole==='LĐ Ban chủ trì'||khptmRole==='LĐTCT';
-  const defaultTab=isLeader?'exchange':'files';
-  const canExchange=true;
-  const exchangePlaceholder=isLeader?'Nhập ý kiến xử lý...':'Nhập nội dung trao đổi...';
-  const exchangeButton=isLeader?'Gửi ý kiến':'Gửi';
-  const exchangeDefault=khptmRole==='LĐ Ban chủ trì'?'Đồng ý nội dung Tờ trình và dự thảo Văn bản GNV.':khptmRole==='LĐTCT'?'Đồng ý nội dung trình ký.':'';
-  const sourceRow=`<tr><td>1</td><td class="center">☒</td><td class="center"><input type="checkbox" checked disabled></td><td class="center"><input type="checkbox" disabled></td><td class="center"><input type="checkbox" checked disabled></td><td>719/QĐ-VNPT-CN-CLSP-KHĐT<br><span class="mini">25/06/2026</span></td><td></td><td>Tập đoàn</td><td>Theo văn bản</td><td><select disabled><option selected>VB hướng dẫn TĐ</option></select></td><td><span class="pm-ext-file" onclick="openKHPTMPreview('source')">Huong_dan_KHPTM_Tap_doan_2027.pdf</span></td><td>Chuyên viên KHPTM</td><td>01/10/2026<br>08:30</td><td><button class="pm-ext-action" onclick="toast('Demo: lấy/đối chiếu số văn bản từ eOffice')">Lấy số VB</button></td><td><button class="pm-ext-action" onclick="toast('Đã cập nhật thông tin người ký theo văn bản')">Cập nhật</button></td><td><button class="pm-ext-action" onclick="openKHPTMPreview('source')">Xem</button>${canEdit?' <button class="pm-ext-action danger" onclick="toast(\'Demo: xóa tài liệu hướng dẫn TĐ khỏi hồ sơ\')">Xóa</button>':''}</td></tr>`;
-  const submissionRow=`<tr><td>2</td><td class="center">${khptmUnitLeaderSigned||khptmStep==='K3'||khptmStep==='K4'||khptmStep==='DONE'?'☒':'☐'}</td><td class="center"><input type="checkbox" checked disabled></td><td class="center"><input type="checkbox" checked disabled></td><td class="center"><input type="checkbox" disabled></td><td><span class="mini">Chưa cấp số</span></td><td></td><td>VNPT Net</td><td>Theo luồng trình ký</td><td><select disabled><option selected>Tờ trình</option></select></td><td><span class="pm-ext-file" onclick="openKHPTMPreview('submission')">To_trinh_ban_hanh_GNV_phoi_hop_XD_KHPTM_2027.docx</span></td><td>Chuyên viên KHPTM</td><td>01/10/2026<br>09:00</td><td></td><td></td><td><button class="pm-ext-action" onclick="openKHPTMPreview('submission')">Xem</button></td></tr>`;
-  const gnvRow=`<tr><td>3</td><td class="center">${khptmSigned||khptmStep==='K4'||khptmStep==='DONE'?'☒':'☐'}</td><td class="center"><input type="checkbox" checked disabled></td><td class="center"><input type="checkbox" checked disabled></td><td class="center"><input type="checkbox" disabled></td><td>${khptmStep==='DONE'?(khptmIssue.number||'812')+'/VNPT Net-'+khptmIssue.suffix+'<br><span class="mini">'+formatDateVN(khptmIssue.date)+'</span>':'<span class="mini">Chưa cấp số</span>'}</td><td>${khptmStep==='DONE'?(khptmIssue.eoffice||'698321'):''}</td><td>VNPT Net</td><td>LĐTCT</td><td><select disabled><option selected>VB GNV TCT</option></select></td><td><span class="pm-ext-file" onclick="openKHPTMPreview('gnv')">VB_GNV_phoi_hop_XD_KHPTM_2027.docx</span></td><td>Chuyên viên KHPTM</td><td>01/10/2026<br>09:00</td><td></td><td></td><td><button class="pm-ext-action" onclick="openKHPTMPreview('gnv')">Xem</button></td></tr>`;
-  const uploadRow=canEdit?`<table class="pm-ext-add-table"><colgroup><col style="width:72px"><col style="width:55px"><col style="width:48px"><col style="width:48px"><col><col style="width:126px"><col style="width:88px"><col style="width:94px"><col style="width:112px"><col style="width:116px"><col style="width:118px"><col style="width:34px"></colgroup><thead><tr><th>Yêu cầu ký số<br>chính thức<br>(PDF,DOCX)</th><th>Cho ĐTVT<br>xem</th><th>VB<br>Chính</th><th>VB<br>LQ</th><th>Đường dẫn file</th><th>Nhóm tài liệu</th><th>Số VB</th><th>Ngày VB</th><th>Cấp ra VB</th><th>Người ký</th><th>Chức vụ người ký</th><th>Xóa</th></tr></thead><tbody><tr><td><input type="checkbox"></td><td><input type="checkbox" checked></td><td><input type="checkbox"></td><td><input type="checkbox" checked></td><td><input id="khptmGuidanceUpload" type="file" accept=".pdf,.doc,.docx"></td><td><select><option selected>VB hướng dẫn TĐ</option><option>Tờ trình</option><option>VB GNV TCT</option><option>Hồ sơ liên quan</option></select></td><td><input value=""></td><td><input type="date"></td><td><input value="Tập đoàn"></td><td><input placeholder="Theo văn bản"></td><td><select><option>-- Chọn --</option><option>Tổng Giám đốc</option><option>Phó Tổng Giám đốc</option><option>Khác</option></select></td><td><span class="linklike" onclick="toast('Đã xóa dòng file')">Xóa</span></td></tr></tbody></table><div class="pm-ext-add-links"><span onclick="toast('Mở danh sách file từ template')">Thêm file từ template</span><span onclick="toast('Đã thêm dòng file mới')">Thêm File</span><span onclick="khptmAttachGuidance()">Lưu tài liệu</span></div>`:'';
-  return `<div class="pm-ims-extended"><span class="pm-ext-caption">Thông tin mở rộng</span><div class="pm-ext-tabs"><div class="pm-ext-tab ${defaultTab==='files'?'active':''}" data-khptm-ext="files" onclick="switchKHPTMExtTab('files',this)">Tài liệu đính kèm</div><div class="pm-ext-tab" data-khptm-ext="route" onclick="switchKHPTMExtTab('route',this)">Lịch sử luân chuyển</div><div class="pm-ext-tab ${defaultTab==='exchange'?'active':''}" data-khptm-ext="exchange" onclick="switchKHPTMExtTab('exchange',this)">Lịch sử trao đổi</div></div><div id="khptmExtFiles" class="pm-ext-pane ${defaultTab==='files'?'active':''}"><table class="pm-ext-table"><colgroup><col class="pm-ext-w-stt"><col class="pm-ext-w-check"><col class="pm-ext-w-check"><col class="pm-ext-w-check-sm"><col class="pm-ext-w-check-sm"><col class="pm-ext-w-date"><col class="pm-ext-w-eoffice"><col class="pm-ext-w-level"><col class="pm-ext-w-signer"><col class="pm-ext-w-group"><col><col class="pm-ext-w-user"><col class="pm-ext-w-time"><col class="pm-ext-w-office"><col class="pm-ext-w-update"><col class="pm-ext-w-docact"></colgroup><thead><tr><th>STT</th><th>Trạng thái<br>ký số</th><th>Cho ĐTVT<br>xem</th><th>VB<br>Chính</th><th>VB<br>LQ</th><th>Số, ngày VB</th><th>Số<br>eOffice</th><th>Cấp ra VB</th><th>Người ký</th><th>Nhóm tài liệu</th><th>Tên tài liệu</th><th>Người tạo</th><th>Thời gian<br>tạo</th><th>Thao tác<br>eOffice</th><th>Cập nhật<br>người ký</th><th>Thao tác<br>văn bản</th></tr></thead><tbody>${sourceRow}${submissionRow}${gnvRow}</tbody></table>${uploadRow}</div><div id="khptmExtRoute" class="pm-ext-pane"><div id="khptmHistory" class="history-list"></div></div><div id="khptmExtExchange" class="pm-ext-pane ${defaultTab==='exchange'?'active':''}"><div id="khptmExchange"></div>${canExchange?`<div class="toolbar" style="margin-top:8px"><textarea id="khptmQuickExchange" placeholder="${exchangePlaceholder}" style="min-height:70px">${exchangeDefault}</textarea><button class="primary" onclick="sendKHPTMExchange()">${exchangeButton}</button></div>`:''}</div></div>`;
-}
-
-function renderKHPTMExtended(){const h=document.getElementById('khptmExtended');if(!h)return;h.innerHTML=khptmExtendedHtml();renderKHPTMHistory();renderKHPTMExchange()}
-function switchKHPTMExtTab(name,el){document.querySelectorAll('#khptmExtended .pm-ext-tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('#khptmExtended .pm-ext-pane').forEach(x=>x.classList.remove('active'));el.classList.add('active');document.getElementById(name==='files'?'khptmExtFiles':name==='route'?'khptmExtRoute':'khptmExtExchange').classList.add('active')}
-function khptmAttachGuidance(){const f=document.getElementById('khptmGuidanceUpload');if(!f||!f.files||!f.files.length)return toast('Chọn file Văn bản hướng dẫn của Tập đoàn');toast('Đã lưu Văn bản hướng dẫn của Tập đoàn vào Thông tin mở rộng dưới dạng VB liên quan (demo)')}
-function switchKHPTMTab(name,el){document.querySelectorAll('#khptm-process .flow-tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('#khptm-process .flow-tab-pane').forEach(x=>x.classList.remove('active'));el.classList.add('active');document.getElementById(name==='exchange'?'khptmTabExchange':'khptmTabHistory').classList.add('active')}
-function renderKHPTMHistory(){const h=document.getElementById('khptmHistory');if(h)h.innerHTML=khptmHistory.map(x=>`<div class="history-item"><div class="time">${esc(x.time)}</div><div class="actor">${esc(x.actor)}</div><div>${esc(x.text)}</div></div>`).join('')}
-function renderKHPTMExchange(){const h=document.getElementById('khptmExchange');if(!h)return;h.innerHTML=khptmExchange.length?khptmExchange.map(x=>`<div class="exchange-item"><div class="meta">${esc(x.actor)} · ${esc(x.time)}</div><div>${esc(x.text)}</div></div>`).join(''):'<div class="role-empty">Chưa có trao đổi.</div>'}
-function sendKHPTMExchange(){const v=(document.getElementById('khptmQuickExchange')?.value||'').trim();if(!v)return toast('Nhập nội dung trao đổi');khptmExchange.unshift({actor:khptmRole,time:new Date().toLocaleString('vi-VN',{hour12:false}),text:v});document.getElementById('khptmQuickExchange').value='';renderKHPTMExchange();toast('Đã lưu trao đổi vào hồ sơ')}
-function openKHPTMPreview(type){const title=document.getElementById('khptmPreviewTitle'),paper=document.getElementById('khptmPreviewPaper');if(type==='source'){title.textContent='Văn bản/Hướng dẫn Tập đoàn - Văn bản căn cứ';paper.innerHTML=`<div style="text-align:center"><b>TẬP ĐOÀN BƯU CHÍNH VIỄN THÔNG VIỆT NAM</b></div><p>Số: 719/QĐ-VNPT-CN-CLSP-KHĐT</p><h2>QUYẾT ĐỊNH / HƯỚNG DẪN</h2><h3>Về nguyên tắc xây dựng kế hoạch phát triển mạng</h3><p>Văn bản đã được Tập đoàn ban hành và được NET ghi nhận làm căn cứ trên hệ thống.</p><p><i>Demo chỉ thể hiện vai trò của văn bản nguồn, không tái tạo nội dung văn bản gốc.</i></p>`}else if(type==='submission'){title.textContent='Tờ trình nội bộ TCT';paper.innerHTML=`<div style="text-align:center"><b>TỔNG CÔNG TY HẠ TẦNG MẠNG - VNPT NET</b></div><p>Số: .../TTr-VNPT Net-KT</p><h2>TỜ TRÌNH</h2><h3>Về việc ban hành Văn bản giao nhiệm vụ phối hợp xây dựng KHPTM năm 2027</h3><p><b>Kính trình:</b> Lãnh đạo Tổng công ty.</p><p>Căn cứ văn bản hướng dẫn của Tập đoàn, đơn vị chủ trì trình Lãnh đạo Tổng công ty xem xét ban hành văn bản giao nhiệm vụ phối hợp xây dựng KHPTM năm 2027.</p><div class="sign"><b>ĐƠN VỊ TRÌNH</b></div>`}else{title.textContent='Văn bản GNV phối hợp XD KHPTM của TCT';paper.innerHTML=`<div style="text-align:center"><b>TỔNG CÔNG TY HẠ TẦNG MẠNG - VNPT NET</b></div><p>Số: ${khptmStep==='DONE'?(khptmIssue.number||'812')+'/VNPT Net-'+khptmIssue.suffix:'.../VNPT Net-KT'}</p><h2>VĂN BẢN GIAO NHIỆM VỤ</h2><h3>Phối hợp xây dựng Kế hoạch phát triển mạng năm 2027</h3><p><b>Kính gửi:</b> Ban KT; Ban KTM; các NetX; VNPT TTP/VNP/IT và các đơn vị liên quan.</p><p>Căn cứ văn bản hướng dẫn của Tập đoàn, Tổng công ty giao các đơn vị phối hợp cung cấp thông tin, số liệu và triển khai xây dựng KHPTM năm 2027.</p><p><b>Hạn thực hiện:</b> 20/10/2026.</p><div class="sign"><b>TỔNG GIÁM ĐỐC</b><br><br><br>${khptmSigned||khptmStep==='DONE'?'(Đã ký số)':'(Chờ ký)'}</div>`}document.getElementById('khptmPreviewModal').classList.add('show')}
+// SOP 1 bước 1 được triển khai riêng tại khptm-step1.js.
 function closeKHPTMPreview(){document.getElementById('khptmPreviewModal').classList.remove('show')}
-function ensureKhptmRecipients(){const extra=[{id:'khsp',name:'Phạm Anh D',title:'Chuyên viên KHPTM',unit:'Ban KT'},{id:'khlead',name:'Nguyễn Văn K',title:'LĐ Ban chủ trì',unit:'Ban KT'}];extra.forEach(r=>{if(!routeRecipients.some(x=>x.id===r.id))routeRecipients.push(r)})}
-const _routeKeyFromNameKH=routeKeyFromName;routeKeyFromName=function(s){s=s||'';if(s.includes('Phạm Anh D')||s.includes('Chuyên viên KHPTM'))return'khsp';if(s.includes('Nguyễn Văn K')||s.includes('LĐ Ban chủ trì'))return'khlead';return _routeKeyFromNameKH(s)};
-function setKhptmRouteFiles(action){const sign=document.querySelector('#routeSignFileRow .route-file-name');const issue=document.querySelector('#routeIssueFileRow .route-file-name');if(sign)sign.textContent=action==='khptmSubmitUnitLeader'?'To_trinh_ban_hanh_GNV_phoi_hop_XD_KHPTM_2027.docx (Người gửi: Chuyên viên KHPTM)':'To_trinh_ban_hanh_GNV_phoi_hop_XD_KHPTM_2027.pdf';if(issue)issue.textContent='VB_GNV_phoi_hop_XD_KHPTM_2027.docx';const note=document.getElementById('transferNote');if(note)note.value=action==='khptmSubmitUnitLeader'?'Trình LĐ Ban chủ trì xem xét hồ sơ và chuyển LĐTCT.':action==='khptmSubmitLDTCT'?'Trình LĐTCT xem xét, ký Văn bản GNV phối hợp XD KHPTM.':action==='khptmToClerk'?'Chuyển Văn thư tiếp nhận văn bản đã ký để cấp số, ban hành.':'Phát hành/chuyển Văn bản GNV tới các đơn vị phối hợp xây dựng KHPTM.'}
-function openKhptmTransfer(action){ensureKhptmRecipients();pendingTransferAction=action;const cfg={khptmSubmitUnitLeader:{main:'Nguyễn Văn K - LĐ Ban chủ trì',co:[],send:[]},khptmSubmitLDTCT:{main:'Nguyễn Việt Tiến - Tổng Giám đốc',co:[],send:['Văn thư']},khptmToClerk:{main:'Phùng Thị Liên - Văn thư',co:[],send:[]},khptmDistribute:{main:'Phạm Anh D - Chuyên viên KHPTM',co:['PM KTM - Lê Văn D'],send:['Nguyễn Văn K - LĐ Ban chủ trì']}};currentTransferCfg=cfg[action]||cfg.khptmSubmitUnitLeader;renderRouteRecipients();switchRouteTab('files');setKhptmRouteFiles(action);document.getElementById('transferModal').classList.add('show')}
-const _confirmTransferKH=confirmTransfer;confirmTransfer=function(){if(!String(pendingTransferAction||'').startsWith('khptm'))return _confirmTransferKH();const sel=selectedRouteRecipients();if(!sel.main){switchRouteTab('receiver');return toast('Chọn 01 người xử lý chính')}const note=(document.getElementById('transferNote')?.value||'').trim();hideTransferModal();if(pendingTransferAction==='khptmSubmitUnitLeader'){khptmLog('Chuyên viên KHPTM','Trình hồ sơ Thông báo/Hướng dẫn KHPTM tới LĐ Ban chủ trì'+(note?' · '+note:''));khptmStep='K2';khptmRole='LĐ Ban chủ trì'}else if(pendingTransferAction==='khptmSubmitLDTCT'){if(!khptmUnitLeaderSigned){pendingTransferAction='';renderKHPTM();document.getElementById('khptm-process').classList.add('active');return toast('LĐ Ban chủ trì cần ký số Tờ trình trước khi chuyển LĐTCT')}khptmLog('LĐ Ban chủ trì','Chuyển hồ sơ trình LĐTCT ký Văn bản GNV phối hợp XD KHPTM'+(note?' · '+note:''));khptmStep='K3';khptmRole='LĐTCT'}else if(pendingTransferAction==='khptmToClerk'){khptmLog('LĐTCT','Chuyển Văn thư tiếp nhận văn bản đã ký'+(note?' · '+note:''));khptmStep='K4';khptmRole='Văn thư'}else if(pendingTransferAction==='khptmDistribute'){khptmLog('Văn thư','Chuyển/phát hành Văn bản GNV tới các đơn vị phối hợp xây dựng KHPTM'+(note?' · '+note:''));toast('Đã chuyển Văn bản GNV tới các đơn vị thực hiện')}pendingTransferAction='';renderKHPTM();document.getElementById('khptm-process').classList.add('active');window.scrollTo({top:0,behavior:'smooth'})}
-function khptmReturnToSpecialist(){khptmLog(khptmRole,'Trả lại Chuyên viên KHPTM để hoàn thiện hồ sơ');khptmStep='K1';khptmRole='Chuyên viên KHPTM';renderKHPTM();toast('Đã trả lại Chuyên viên KHPTM')}
-function khptmSignByLDTCT(){khptmSigned=true;khptmLog('LĐTCT','Ký số Văn bản GNV phối hợp XD KHPTM của TCT');renderKHPTM();toast('Đã ký số Văn bản GNV (demo)')}
-function issueKHPTM(){khptmIssue.number=(document.getElementById('khptmIssueNumber')?.value||'').trim();khptmIssue.suffix=(document.getElementById('khptmIssueSuffix')?.value||'KT').trim();khptmIssue.date=document.getElementById('khptmIssueDate')?.value||'';khptmIssue.eoffice=(document.getElementById('khptmIssueEoffice')?.value||'').trim();if(!khptmIssue.number||!khptmIssue.date)return toast('Nhập Số văn bản và Ngày ban hành');khptmLog('Văn thư',`Cấp số, ngày, eOffice và ban hành Văn bản ${khptmIssue.number}/VNPT Net-${khptmIssue.suffix}`);khptmStep='DONE';khptmRole='Văn thư';renderKHPTM();toast('Đã ban hành Văn bản GNV phối hợp XD KHPTM')}
-
-
 
 const _routeKeyFromNameKHBUILD=routeKeyFromName;
 routeKeyFromName=function(s){
@@ -2775,4 +2616,5 @@ if(document.getElementById("team-create").classList.contains("active"))renderFlo
 <script src="khptm-info.js"></script>
 <script src="khptm-csht-template.js"></script>
 <script src="khptm-step5.js"></script>
+<script src="khptm-step1.js"></script>
 </body></html>
