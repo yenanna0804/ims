@@ -6,7 +6,7 @@
 (function (root) {
   'use strict';
   const types = ['Core di động', 'Vô tuyến', 'BRCĐ', 'CSHT'];
-  const roles = {tdPM:'PM chủ trì Tập đoàn',tdLeader:'LĐ Tập đoàn',tdClerk:'Văn thư Tập đoàn',
+  const roles = {tdPM:'PM chủ trì Tập đoàn',tdBanLead:'LĐ Ban chủ trì Tập đoàn',tdLeader:'LĐ Tập đoàn',tdClerk:'Văn thư Tập đoàn',
     ktPM:'PM Ban KT',ktLead:'LĐ Ban KT',tctLeader:'LĐTCT',tctClerk:'Văn thư TCT',
     ktmPM:'PM Ban KTM',ktmLead:'LĐ Ban KTM',netPM:'PM NetX',netLead:'LĐ NetX',
     ttpPM:'PM VNPT TTP',ttpLead:'LĐ VNPT TTP',vnpPM:'PM VNP',vnpLead:'LĐ VNP',itPM:'PM IT',itLead:'LĐ IT'};
@@ -37,24 +37,26 @@
      q.receipt.purpose==='CONSULT_REVIEW' && a==='ktLead' && q.receipt.from==='ktPM' && q.receipt.responseRevision===q.responseRevision));
   const returnedConsult = r => r.kind==='GUIDANCE' && r.mode==='TD' && r.requests.some(q=>q.status==='DONE' && q.id===r.receipt.requestId && q.receipt.from===r.receipt.from && q.receipt.purpose==='CONSULT_RESULT');
   const canEdit = (r,a) => owns(r,a) && a===pm(r) && ['PREPARE','REVISE','IMPORT'].includes(r.receipt.purpose) &&
-    (r.kind==='GNV' ? [null,'ktLead','tctLeader'].includes(r.receipt.from) : r.mode==='EXTERNAL' ? r.receipt.from===null : [null,'tdLeader'].includes(r.receipt.from)||returnedConsult(r)) && !r.issue.issued;
+    (r.kind==='GNV' ? [null,'ktLead','tctLeader'].includes(r.receipt.from) : r.mode==='EXTERNAL' ? r.receipt.from===null : [null,'tdBanLead','tdLeader'].includes(r.receipt.from)||returnedConsult(r)) && !r.issue.issued;
   const canProvide = (r,a) => requestTask(r,a)?.receipt.purpose==='CONSULT_WORK';
   const canReceive = (r,a) => owns(r,a) || !!requestTask(r,a) || !!r.views[a];
   const receiptFor = (r,a) => requestTask(r,a)?.receipt || (owns(r,a)?r.receipt:r.views[a]);
   const validSource = r => r.kind!=='GNV' || !!r.source && r.source.issue.issued && r.source.document.signed && r.source.revision===r.source.document.revision &&
     r.source.fingerprint===JSON.stringify([r.source.id,r.source.revision,r.source.data,r.source.issue,r.source.document.id,r.source.document.signed]);
-  const validDocs = r => validSource(r) && r.receipt.fingerprint===fingerprint(r) && r.guidance?.revision===r.revision &&
-    r.receipt.files.includes(r.guidance.id) && (r.kind!=='GNV' || r.submission?.revision===r.revision && r.receipt.files.includes(r.submission.id));
-  const signatureValid = (r,doc) => !!doc?.signed && doc.revision===r.revision && doc.fingerprint===fingerprint(r);
+  const validDocs = r => validSource(r) && r.receipt.fingerprint===fingerprint(r) && r.guidance?.revision===r.revision && r.guidance.fingerprint===fingerprint(r) &&
+    r.receipt.files.includes(r.guidance.id) && (r.kind==='GUIDANCE'&&r.mode==='EXTERNAL' || r.submission?.revision===r.revision && r.submission.fingerprint===fingerprint(r) && r.receipt.files.includes(r.submission.id));
+  const signatureValid = (r,doc) => !!doc?.signed && doc.revision===r.revision && doc.fingerprint===fingerprint(r) &&
+    doc.signer===(doc.kind==='submission'?(r.kind==='GNV'?'ktLead':'tdBanLead'):r.kind==='GNV'?'tctLeader':'tdLeader');
   const canSign = (r,a) => owns(r,a) && validDocs(r) &&
-    (r.kind==='GUIDANCE' && a==='tdLeader' && r.receipt.from==='tdPM' && r.receipt.purpose==='SIGN_GUIDANCE' && !signatureValid(r,r.guidance) ||
+    (r.kind==='GUIDANCE' && r.mode==='TD' && a==='tdBanLead' && r.receipt.from==='tdPM' && r.receipt.purpose==='SIGN_TD_SUBMISSION' && !signatureValid(r,r.submission) ||
+     r.kind==='GUIDANCE' && r.mode==='TD' && a==='tdLeader' && r.receipt.from==='tdBanLead' && r.receipt.purpose==='SIGN_GUIDANCE' && signatureValid(r,r.submission) && !signatureValid(r,r.guidance) ||
      r.kind==='GNV' && a==='ktLead' && r.receipt.from==='ktPM' && r.receipt.purpose==='SIGN_SUBMISSION' && !signatureValid(r,r.submission) ||
      r.kind==='GNV' && a==='tctLeader' && r.receipt.from==='ktLead' && r.receipt.purpose==='SIGN_GNV' && signatureValid(r,r.submission) && !signatureValid(r,r.guidance));
   const canApprove = (r,a) => {const q=requestTask(r,a);return q?.receipt.purpose==='CONSULT_REVIEW' && q.responseRevision>0 && q.approvedRevision!==q.responseRevision;};
   const canIssue = (r,a) => owns(r,a) && validDocs(r) && !r.issue.issued && signatureValid(r,r.guidance) &&
-    (r.kind==='GUIDANCE' && a==='tdClerk' && r.receipt.from==='tdLeader' && r.receipt.purpose==='ISSUE_GUIDANCE' ||
+    (r.kind==='GUIDANCE' && r.mode==='TD' && a==='tdClerk' && r.receipt.from==='tdLeader' && r.receipt.purpose==='ISSUE_GUIDANCE' && signatureValid(r,r.submission) ||
      r.kind==='GNV' && a==='tctClerk' && r.receipt.from==='tctLeader' && r.receipt.purpose==='ISSUE_GNV' && signatureValid(r,r.submission));
-  const issuedGuidance = r => r.kind==='GUIDANCE' && r.issue.issued && signatureValid(r,r.guidance) && r.issue.revision===r.revision;
+  const issuedGuidance = r => !!(r.kind==='GUIDANCE' && r.issue.issued && signatureValid(r,r.guidance) && r.issue.revision===r.revision && (r.mode==='EXTERNAL'||signatureValid(r,r.submission)));
   const canAssign = (r,a) => issuedGuidance(r) && owns(r,a) && a==='ktPM' && r.receipt.purpose==='RECEIVED_GUIDANCE' &&
     ['tdClerk','ktPM'].includes(r.receipt.from) && r.receipt.files.includes(r.guidance.id) && r.receipt.sourceFingerprint===sourceFingerprint(r);
   function validate(r) { if(!validSource(r)||r.kind==='GNV' && (r.data.year!==r.source.data.year||r.data.types.some(t=>!r.source.data.types.includes(t))))throw Error('Thông tin GNV phải đúng hướng dẫn TĐ nguồn');
@@ -63,15 +65,20 @@
   function save(r,a,data) { if(!canEdit(r,a))throw Error('Bạn chưa được giao lập / sửa hồ sơ');
     const next={...r.data,...clone(data)};if(JSON.stringify(next)!==JSON.stringify(r.data)){r.data=next;r.revision++;r.guidance=null;r.submission=null;r.receipt.revision=r.revision;r.receipt.files=[];r.receipt.fingerprint=null;}return r; }
   function document(r,kind) {return {id:r.id+'-'+kind+'-v'+r.revision,kind,revision:r.revision,fingerprint:fingerprint(r),signed:false};}
-  function prepare(r,a) {if(!canEdit(r,a)||r.phase==='IMPORT')throw Error('Chưa được giao lập văn bản');validate(r);r.guidance ||= document(r,r.kind==='GNV'?'gnv':'guidance');if(r.kind==='GNV')r.submission ||= document(r,'submission');return [r.guidance,...(r.submission?[r.submission]:[])];}
+  function prepare(r,a) {if(!canEdit(r,a)||r.phase==='IMPORT')throw Error('Chưa được giao lập văn bản');validate(r);r.guidance ||= document(r,r.kind==='GNV'?'gnv':'guidance');r.submission ||= document(r,'submission');return [r.guidance,r.submission];}
   function sign(r,a,external) {if(!canSign(r,a))throw Error('Nhiệm vụ, người chuyển hoặc phiên bản không cho phép ký');
     if(external&&(!external.name || !/\.(pdf|docx?)$/i.test(external.name)))throw Error('Chọn văn bản đã ký PDF/Word');
-    const doc=a==='ktLead'?r.submission:r.guidance;Object.assign(doc,{signed:true,signer:a,signatureSource:external?'external':'digital',signedAt:time()});
+    const doc=['ktLead','tdBanLead'].includes(a)?r.submission:r.guidance;Object.assign(doc,{signed:true,signer:a,signatureSource:external?'external':'digital',signedAt:time()});
     if(external)doc.external={...external};return doc; }
   function approve(r,a) {if(!canApprove(r,a))throw Error('Chỉ duyệt phản hồi do PM Ban KT trình');const q=requestTask(r,a);q.approvedRevision=q.responseRevision;}
   function issue(r,a,metadata) {if(!canIssue(r,a))throw Error('Chỉ Văn thư nhận đúng văn bản đã ký được ban hành');
     if(!metadata.number?.trim()||!/^\d{4}-\d{2}-\d{2}$/.test(metadata.date)||!metadata.recipients?.trim())throw Error('Nhập số, ngày ban hành và nơi nhận');
     r.issue={...clone(metadata),issued:true,revision:r.revision,actor:a,time:time()};r.phase='ISSUED';return r.issue; }
+  function takeNumber(r,a,records=[]) {if(!canIssue(r,a))throw Error('Chỉ Văn thư nhận văn bản đã ký được lấy số');
+    if(r.issueDraft?.number?.trim())return r.issueDraft.number;
+    const authority=r.kind==='GNV'?'TCT':'TD',start=authority==='TD'?1001:813;
+    const used=records.filter(x=>(x.kind==='GNV'?'TCT':'TD')===authority).flatMap(x=>[x.issue?.serial||x.issue?.number,x.issueDraft?.number]).map(x=>/^\d+(?:\/|$)/.test(x||'')?parseInt(x,10):0);
+    const number=String(Math.max(start-1,...used)+1);r.issueDraft={...r.issueDraft,number};return number; }
   function recordExternal(r,a,metadata,file) {if(r.kind!=='GUIDANCE'||r.mode!=='EXTERNAL'||!canEdit(r,a)||a!=='ktPM')throw Error('Chưa được giao ghi nhận VB Tập đoàn');validate(r);
     if(!metadata.confirmed || !metadata.number?.trim() || !metadata.date || !file?.name || !/\.(pdf|docx?)$/i.test(file.name))throw Error('Đính kèm VB TĐ đã ban hành và xác nhận số/ngày văn bản');
     r.guidance=document(r,'guidance');Object.assign(r.guidance,{signed:true,signer:'tdLeader',signatureSource:'external',external:{...file}});
@@ -90,12 +97,14 @@
     const q=requestTask(r,a);if(q){if(q.receipt.purpose==='CONSULT_ASSIGN')return ['ktPM','tdPM'];if(q.receipt.purpose==='CONSULT_WORK')return q.responseRevision?['tdPM','ktLead']:['tdPM'];
       if(q.receipt.purpose==='CONSULT_REVIEW')return ['ktPM',...(q.approvedRevision===q.responseRevision?['tdPM']:[])];}
     if(!owns(r,a))return [];
-    if(canEdit(r,a)&&r.phase!=='IMPORT')return r.kind==='GUIDANCE'?['tdLeader',...(!r.requests.some(q=>q.status!=='DONE')?['ktPM','ktLead']:[])]:['ktLead'];
-    if(r.kind==='GUIDANCE' && a==='tdLeader' && r.receipt.from==='tdPM' && r.receipt.purpose==='SIGN_GUIDANCE' && validDocs(r))return signatureValid(r,r.guidance)?['tdClerk']:['tdPM'];
+    if(canEdit(r,a)&&r.phase!=='IMPORT')return r.kind==='GUIDANCE'?['tdBanLead',...(!r.requests.some(q=>q.status!=='DONE')?['ktPM','ktLead']:[])]:['ktLead'];
+    if(r.kind==='GUIDANCE' && a==='tdBanLead' && r.receipt.from==='tdPM' && r.receipt.purpose==='SIGN_TD_SUBMISSION' && validDocs(r))return signatureValid(r,r.submission)?['tdLeader']:['tdPM'];
+    if(r.kind==='GUIDANCE' && a==='tdBanLead' && r.receipt.from==='tdLeader' && r.receipt.purpose==='ASSIGN_TD_REVISE' && validDocs(r))return ['tdPM'];
+    if(r.kind==='GUIDANCE' && a==='tdLeader' && r.receipt.from==='tdBanLead' && r.receipt.purpose==='SIGN_GUIDANCE' && validDocs(r) && signatureValid(r,r.submission))return signatureValid(r,r.guidance)?['tdClerk']:['tdPM','tdBanLead'];
     if(r.kind==='GNV' && a==='ktLead' && r.receipt.from==='ktPM' && r.receipt.purpose==='SIGN_SUBMISSION' && validDocs(r))return signatureValid(r,r.submission)?['tctLeader']:['ktPM'];
     if(r.kind==='GNV' && a==='ktLead' && r.receipt.from==='tctLeader' && r.receipt.purpose==='ASSIGN_REVISE' && validDocs(r))return ['ktPM'];
     if(r.kind==='GNV' && a==='tctLeader' && r.receipt.from==='ktLead' && r.receipt.purpose==='SIGN_GNV' && validDocs(r))return signatureValid(r,r.guidance)?['tctClerk']:['ktPM','ktLead'];
-    if(r.kind==='GUIDANCE'&&a==='tdClerk'&&r.receipt.from==='tdLeader'&&r.receipt.purpose==='ISSUE_GUIDANCE'&&validDocs(r)&&signatureValid(r,r.guidance)&&r.issue.issued)return ['ktPM'];
+    if(r.kind==='GUIDANCE'&&a==='tdClerk'&&r.receipt.from==='tdLeader'&&r.receipt.purpose==='ISSUE_GUIDANCE'&&validDocs(r)&&issuedGuidance(r))return ['ktPM'];
     if(r.kind==='GNV'&&a==='tctClerk'&&r.receipt.from==='tctLeader'&&r.receipt.purpose==='ISSUE_GNV'&&validDocs(r)&&signatureValid(r,r.guidance)&&r.issue.issued&&!r.distribution)return recipientUnits(r).flatMap(u=>[u.lead,u.pm]);
     return [];
   }
@@ -123,12 +132,13 @@
       q.receipt={from:a,to,purpose:to==='ktPM'?'CONSULT_WORK':'CONSULT_ASSIGN',revision:1,requestId:q.id,files:[f.id],note:detail.note,time:time()};r.requests.push(q);r.viewer=to;return q.receipt;
     }
     if(canEdit(r,a)){if(r.requests.some(q=>q.status!=='DONE'))throw Error('Hoàn tất nhánh xin ý kiến đã chọn trước khi trình ký');prepare(r,a);}
-    const mandatory=r.kind==='GNV'?[r.guidance?.id,r.submission?.id]:[r.guidance?.id];
+    const mandatory=[r.guidance?.id,r.submission?.id];
     if(mandatory.some(id=>!id||!detail.files.includes(id)))throw Error('Chọn đủ văn bản đúng phiên bản khi chuyển');
-    if((to===pm(r)&&['tdLeader','ktLead','tctLeader'].includes(a)||to==='ktLead'&&a==='tctLeader')&&!detail.note.trim())throw Error('Ghi ý kiến trả lại');
+    if((to===pm(r)&&['tdBanLead','tdLeader','ktLead','tctLeader'].includes(a)||to==='ktLead'&&a==='tctLeader'||to==='tdBanLead'&&a==='tdLeader')&&!detail.note.trim())throw Error('Ghi ý kiến trả lại');
     let purpose,phase;
     if(a==='tctClerk'){purpose='IMPLEMENT';phase='DISTRIBUTED';r.distribution={main:to,co:detail.co.slice(),view:detail.view.slice(),files:detail.files.slice(),time:time()};}
-    else if(to===pm(r)&&['tdLeader','ktLead','tctLeader'].includes(a)||a==='tctLeader'&&to==='ktLead'){purpose=to==='ktLead'?'ASSIGN_REVISE':'REVISE';phase=to==='ktLead'?'RETURN':'DRAFT';r.guidance.signed=false;if(r.submission)r.submission.signed=false;}
+    else if(to===pm(r)&&['tdBanLead','tdLeader','ktLead','tctLeader'].includes(a)||a==='tctLeader'&&to==='ktLead'||a==='tdLeader'&&to==='tdBanLead'){purpose=to==='ktLead'?'ASSIGN_REVISE':to==='tdBanLead'?'ASSIGN_TD_REVISE':'REVISE';phase=['ktLead','tdBanLead'].includes(to)?'RETURN':'DRAFT';r.guidance.signed=false;if(r.submission)r.submission.signed=false;}
+    else if(to==='tdBanLead'){purpose='SIGN_TD_SUBMISSION';phase='TD_BAN_SIGN';}
     else if(to==='tdLeader'){purpose='SIGN_GUIDANCE';phase='SIGN';}
     else if(to==='ktLead'){purpose='SIGN_SUBMISSION';phase='BAN_SIGN';}
     else if(to==='tctLeader'){purpose='SIGN_GNV';phase='SIGN';}
@@ -139,9 +149,9 @@
     if(purpose==='RECEIVED_GUIDANCE')receipt.sourceFingerprint=sourceFingerprint(r);
     r.owner=r.viewer=to;r.receipt=receipt;r.phase=phase;detail.co.concat(detail.view).forEach(x=>r.views[x]={...receipt,to:x,purpose:detail.co.includes(x)?'IMPLEMENT':'INFORMATION'});return receipt;
   }
-  const roleKeys = r => r.kind==='GUIDANCE'?['tdPM','tdLeader','tdClerk','ktPM','ktLead']:['ktPM','ktLead','tctLeader','tctClerk',...recipientUnits(r).flatMap(u=>[u.lead,u.pm])].filter((v,i,a)=>a.indexOf(v)===i);
+  const roleKeys = r => r.kind==='GUIDANCE'?['tdPM','tdBanLead','tdLeader','tdClerk','ktPM','ktLead']:['ktPM','ktLead','tctLeader','tctClerk',...recipientUnits(r).flatMap(u=>[u.lead,u.pm])].filter((v,i,a)=>a.indexOf(v)===i);
   root.KHStep1={types,roles,units,cutoff,deadline,create,pm,fingerprint,sourceFingerprint,owns,canEdit,canProvide,canReceive,requestTask,receiptFor,
-    canSign,canApprove,canIssue,canAssign,issuedGuidance,signatureValid,validDocs,save,prepare,sign,approve,issue,recordExternal,assignment,linkAssignment,recipientUnits,allowed,storeConsult,saveResponse,transfer,roleKeys};
+    canSign,canApprove,canIssue,canAssign,issuedGuidance,signatureValid,validDocs,save,prepare,sign,approve,issue,takeNumber,recordExternal,assignment,linkAssignment,recipientUnits,allowed,storeConsult,saveResponse,transfer,roleKeys};
   if(typeof module!=='undefined'&&module.exports)module.exports=root.KHStep1;
 })(typeof window!=='undefined'?window:globalThis);
 
@@ -154,11 +164,11 @@
   const section=(title,body)=>'<div class="section"><h3>'+esc(title)+'</h3><div class="body">'+body+'</div></div>';
   const button=(label,action,enabled=true,cls='')=>'<button type="button" class="'+cls+'" onclick="'+esc(action)+'"'+(enabled?'':' disabled')+'>'+esc(label)+'</button>';
   const run=fn=>{try{return fn();}catch(e){notify(e.message,true);return false;}};
-  const purposeNames={PREPARE:'Lập văn bản',REVISE:'Bổ sung hồ sơ trình',IMPORT:'Ghi nhận hướng dẫn Tập đoàn đã ban hành',SIGN_GUIDANCE:'Xem xét / ký hướng dẫn Tập đoàn',
+  const purposeNames={PREPARE:'Lập văn bản',REVISE:'Bổ sung hồ sơ trình',IMPORT:'Ghi nhận hướng dẫn Tập đoàn đã ban hành',SIGN_TD_SUBMISSION:'Xem xét / ký Tờ trình LĐ TĐ',SIGN_GUIDANCE:'Xem xét / ký dự thảo VB hướng dẫn Tập đoàn',
     SIGN_SUBMISSION:'Xem xét / ký Tờ trình LĐ TCT',SIGN_GNV:'Xem xét / ký VB GNV TCT',ISSUE_GUIDANCE:'Ban hành hướng dẫn Tập đoàn',ISSUE_GNV:'Ban hành VB GNV TCT',
     RECEIVED_GUIDANCE:'Tiếp nhận hướng dẫn – có thể Giao nhiệm vụ',CONSULT_ASSIGN:'Phân công góp ý hướng dẫn',CONSULT_WORK:'Góp ý nguyên tắc, cấu trúc KHPTM',CONSULT_REVIEW:'Duyệt ý kiến Ban KT',
-    CONSULT_RESULT:'Nhận ý kiến Ban KT',ASSIGN_REVISE:'Chuyển yêu cầu bổ sung về PM Ban KT',IMPLEMENT:'Nhận VB GNV để thực hiện',INFORMATION:'Xem để biết'};
-  const state=r=>({DRAFT:'Dự thảo',IMPORT:'Chờ ghi nhận VB TĐ',SIGN:'Chờ lãnh đạo ký',BAN_SIGN:'Chờ LĐ Ban KT ký Tờ trình',ISSUE:'Chờ văn thư ban hành',ISSUED:'Đã ban hành',RECEIVED:'Đã nhận hướng dẫn TĐ',RETURN:'Yêu cầu bổ sung',DISTRIBUTED:'Đã chuyển đơn vị thực hiện'})[r.phase];
+    CONSULT_RESULT:'Nhận ý kiến Ban KT',ASSIGN_REVISE:'Chuyển yêu cầu bổ sung về PM Ban KT',ASSIGN_TD_REVISE:'Chuyển yêu cầu bổ sung về PM chủ trì TĐ',IMPLEMENT:'Nhận VB GNV để thực hiện',INFORMATION:'Xem để biết'};
+  const state=r=>({DRAFT:'Dự thảo',IMPORT:'Chờ ghi nhận VB TĐ',SIGN:'Chờ lãnh đạo ký',BAN_SIGN:'Chờ LĐ Ban KT ký Tờ trình',TD_BAN_SIGN:'Chờ LĐ Ban chủ trì TĐ ký Tờ trình',ISSUE:'Chờ văn thư ban hành',ISSUED:'Đã ban hành',RECEIVED:'Đã nhận hướng dẫn TĐ',RETURN:'Yêu cầu bổ sung',DISTRIBUTED:'Đã chuyển đơn vị thực hiện'})[r.phase];
   const base=document.createElement('template');base.innerHTML=khptm2ExtendedHtml();
   const sharedFileTable=base.content.querySelector('.pm-ext-table').cloneNode(true);
   const sharedUpload=base.content.querySelector('.pm-ext-add-table')?.cloneNode(true);
@@ -191,25 +201,31 @@
     if(!isGnv&&r.gnv){const child=records.get(r.gnv.id);html+=section('Văn bản GNV TCT liên quan','<div class="khptm-source"><div class="title">'+esc(child?.data.name||r.gnv.id)+'</div><div class="meta">'+esc(child?.issue.number||'Chưa ban hành')+' · '+esc(child?state(child):'')+'</div>'+button('Mở hồ sơ GNV TCT',"kh1.open('"+r.gnv.id+"')")+'</div>');}
     return html;
   }
-  function issueFields(r,external=false){const d=r.issueDraft||{},prefix=external?'kh1External':'kh1Issue';return [['number','Số văn bản *','text'],['date','Ngày ban hành *','date'],['eoffice','Số eOffice/VBKS','text'],['recipients','Nơi nhận *','text']].map(([key,label,type])=>'<div><label for="'+prefix+'_'+key+'">'+label+'</label><input id="'+prefix+'_'+key+'" type="'+type+'" value="'+esc(d[key]||r.issue[key]||(key==='date'?today():key==='recipients'?r.data.recipients:''))+'"'+(r.issue.issued?' readonly':'')+' onchange="kh1.rememberIssue()"></div>').join('');}
-  function rememberIssue(){const r=current();r.issueDraft={...r.issueDraft};['number','date','eoffice','recipients'].forEach(key=>{const el=document.getElementById((r.phase==='IMPORT'?'kh1External':'kh1Issue')+'_'+key);if(el)r.issueDraft[key]=el.value.trim();});}
+  function issueFields(r,external=false){const d=r.issueDraft||{},prefix=external?'kh1External':'kh1Issue',fields=[['number','Số văn bản *','text'],...(!external?[['suffix','Hậu tố','text']]:[]),['date','Ngày ban hành *','date'],['eoffice','Số eOffice/VBKS','text'],['recipients','Nơi nhận *','text']];
+    return fields.map(([key,label,type])=>{const value=d[key]??r.issue[key]??(key==='number'?r.issue.serial||'':key==='date'?today():key==='recipients'?r.data.recipients:key==='suffix'?r.kind==='GNV'?'VNPT Net-KT':'VNPT-CN':'');
+      const input='<input id="'+prefix+'_'+key+'" type="'+type+'" value="'+esc(key==='number'&&r.issue.issued?r.issue.serial||value:value)+'"'+(r.issue.issued?' readonly':'')+' oninput="kh1.rememberIssue()"'+(!external&&key==='number'?' style="min-width:0;flex:1"':'')+'>';
+      return '<div'+(!external&&key==='recipients'?' style="grid-column:1/-1"':'')+'><label for="'+prefix+'_'+key+'">'+label+'</label>'+(!external&&key==='number'?'<div style="display:flex;gap:6px">'+input+button('Lấy số','kh1.takeNumber()',W.canIssue(r,r.viewer))+'</div>':input)+'</div>';}).join('');}
+  function rememberIssue(){const r=current();r.issueDraft={...r.issueDraft};['number','suffix','date','eoffice','recipients'].forEach(key=>{const el=document.getElementById((r.phase==='IMPORT'?'kh1External':'kh1Issue')+'_'+key);if(el)r.issueDraft[key]=el.value.trim();});const paper=document.getElementById('kh1ClerkPaper');if(paper)paper.innerHTML=mainPaper(r,'outgoing');}
+  function issueNumber(r){const d=r.issue.issued?r.issue:r.issueDraft||{};return r.issue.issued?r.issue.number:d.number?(d.number.includes('/')||!d.suffix?d.number:d.number+'/'+d.suffix):'...';}
+  function takeNumber(){run(()=>{const r=current();rememberIssue();const value=W.takeNumber(r,r.viewer,Array.from(records.values()));document.getElementById('kh1Issue_number').value=value;rememberIssue();log(r,'Lấy số văn bản '+value);notify('Đã lấy số văn bản (demo)');});}
   function canUpload(r){return W.canEdit(r,r.viewer)||W.canProvide(r,r.viewer)||W.canSign(r,r.viewer);}
   function mainPaper(r,kind){const isSub=kind==='submission',isGnv=r.kind==='GNV',issuer=isGnv?'TỔNG CÔNG TY HẠ TẦNG MẠNG – VNPT NET':'TẬP ĐOÀN BƯU CHÍNH VIỄN THÔNG VIỆT NAM',doc=isSub?r.submission:r.guidance;
-    const title=isSub?'TỜ TRÌNH':isGnv?'VĂN BẢN GIAO NHIỆM VỤ':'HƯỚNG DẪN';
-    const intro=isSub?'Về việc ban hành văn bản giao nhiệm vụ phối hợp xây dựng KHPTM năm '+r.data.year:r.data.name;
+    const title=isSub?'TỜ TRÌNH':isGnv?'VĂN BẢN GIAO NHIỆM VỤ':'VĂN BẢN HƯỚNG DẪN';
+    const intro=isSub?'Về việc ban hành '+(isGnv?'văn bản giao nhiệm vụ phối hợp xây dựng':'văn bản hướng dẫn xây dựng')+' KHPTM năm '+r.data.year:r.data.name;
     const source=isGnv?'<p>Căn cứ hướng dẫn Tập đoàn số '+esc(r.source.issue.number)+' ngày '+esc(formatDateVN(r.source.issue.date))+'.</p>':'';
-    return '<div style="text-align:center"><b>'+issuer+'</b></div><p>Số: '+esc(!isSub&&r.issue.issued?r.issue.number:'...')+'</p><h2>'+title+'</h2><h3>'+esc(intro)+'</h3><p><b>'+(isSub?'Kính trình: Lãnh đạo Tổng công ty.':'Kính gửi: '+esc(r.data.recipients))+'</b></p>'+source+'<p>Căn cứ '+esc(r.data.basis)+'.</p><p><b>Năm KHPTM:</b> '+esc(r.data.year)+' · '+esc(r.data.types.join(' · '))+'</p>'+
+    return '<div style="text-align:center"><b>'+issuer+'</b></div>'+(!isSub&&!isGnv&&!W.signatureValid(r,doc)?'<p style="text-align:right"><b>DỰ THẢO</b></p>':'')+'<p>Số: '+esc(!isSub?issueNumber(r):'...')+'</p><h2>'+title+'</h2><h3>'+esc(intro)+'</h3><p><b>'+(isSub?'Kính trình: '+(isGnv?'Lãnh đạo Tổng công ty.':'Lãnh đạo Tập đoàn.'):'Kính gửi: '+esc(r.data.recipients))+'</b></p>'+source+'<p>Căn cứ '+esc(r.data.basis)+'.</p><p><b>Năm KHPTM:</b> '+esc(r.data.year)+' · '+esc(r.data.types.join(' · '))+'</p>'+
       (!isGnv?'<p><b>Nguyên tắc:</b></p><p style="white-space:pre-wrap">'+esc(r.data.principles)+'</p><p><b>Định hướng cấu trúc:</b></p><p style="white-space:pre-wrap">'+esc(r.data.structure)+'</p>':'')+
       '<p><b>'+(isGnv?'Nội dung giao nhiệm vụ:':'Hướng dẫn xây dựng KHPTM:')+'</b></p><p style="white-space:pre-wrap">'+esc(r.data.content)+'</p><p><b>'+(isGnv?'Hạn thực hiện:':'Hạn ban hành hướng dẫn:')+'</b> '+esc(formatDateVN(r.data.deadline))+'</p>'+
-      (isSub?'<p>Kính trình Lãnh đạo Tổng công ty xem xét, ký văn bản GNV kèm theo.</p>':'')+'<div class="sign"><b>'+(isSub?'LÃNH ĐẠO BAN KT':isGnv?'LÃNH ĐẠO TỔNG CÔNG TY':'LÃNH ĐẠO TẬP ĐOÀN')+'</b><br><br>'+esc(doc?.signed?'Đã '+(doc.signatureSource==='external'?'ghi nhận văn bản ký ngoài hệ thống':'ký số (demo)')+' · '+W.roles[doc.signer]:'Chờ ký')+'</div>'+
+      (isSub?'<p>Kính trình '+(isGnv?'Lãnh đạo Tổng công ty xem xét, ký văn bản GNV':'Lãnh đạo Tập đoàn xem xét, ký dự thảo văn bản hướng dẫn XD KHPTM')+' kèm theo.</p>':'')+'<div class="sign"><b>'+(isSub?isGnv?'LÃNH ĐẠO BAN KT':'LÃNH ĐẠO BAN CHỦ TRÌ TẬP ĐOÀN':isGnv?'LÃNH ĐẠO TỔNG CÔNG TY':'LÃNH ĐẠO TẬP ĐOÀN')+'</b><br><br>'+esc(doc?.signed?'Đã '+(doc.signatureSource==='external'?'ghi nhận văn bản ký ngoài hệ thống':'ký số (demo)')+' · '+W.roles[doc.signer]:'Chờ ký')+'</div>'+
       (!isSub&&r.issue.issued?'<p>Đã ban hành ngày '+esc(formatDateVN(r.issue.date))+' · eOffice '+esc(r.issue.eoffice||'--')+'</p>':'');
   }
   function infoPaper(data,kind){return '<div style="text-align:center"><b>'+esc(data.issuer)+'</b></div><p>Số: '+esc(data.number||'...')+'</p><h2>'+(kind==='request'?'YÊU CẦU GÓP Ý HƯỚNG DẪN':'PHẢN HỒI Ý KIẾN BAN KT')+'</h2><h3>Nguyên tắc xây dựng cấu trúc, KHPTM năm '+esc(data.year||data.period)+'</h3><p>Kính gửi: '+esc(kind==='request'?data.unit:data.recipient1)+'</p><p>Phạm vi: '+esc(data.scope)+'</p><p style="white-space:pre-wrap">'+esc(data.content)+'</p>'+(kind==='request'?'<p>Hạn phản hồi: '+esc(formatDateVN(data.deadline))+'</p>':'')+'<p>Ý kiến phục vụ hoàn thiện văn bản hướng dẫn của Tập đoàn.</p>';}
   function artifact(file,html,name){if(file.external&&!file.external.demo){file.name=file.external.name;file.url=file.external.url;file.mime=file.external.mime;return file;}
     const stamp=html+name;if(file.artifactStamp!==stamp){if(file.url)URL.revokeObjectURL(file.url);file.html=html;file.name=name;const div=document.createElement('div');div.innerHTML=html;
       const paras=Array.from(div.children,e=>e.textContent);file.blob=KHStep5Office.docx(paras);file.mime='application/vnd.openxmlformats-officedocument.wordprocessingml.document';file.url=URL.createObjectURL(file.blob);file.artifactStamp=stamp;}return file;}
-  function ensureArtifacts(r){if(r.guidance)artifact(r.guidance,mainPaper(r,'outgoing'),(r.kind==='GNV'?'VB_GNV_TCT_':'Huong_dan_KHPTM_TD_')+r.data.year+'_v'+r.revision+'.docx');
-    if(r.submission)artifact(r.submission,mainPaper(r,'submission'),'To_trinh_GNV_TCT_'+r.data.year+'_v'+r.revision+'.docx');r.files.filter(f=>f.infoKind).forEach(f=>artifact(f,infoPaper(f.data,f.infoKind),(f.infoKind==='request'?'VB_xin_y_kien_huong_dan_':'VB_phan_hoi_y_kien_')+r.data.year+'_v'+f.version+'.docx'));}
+  function guidanceLabel(r){return r.kind==='GNV'?'VB GNV TCT':r.issue.issued?'VB hướng dẫn TĐ đã ban hành':W.signatureValid(r,r.guidance)?'VB hướng dẫn TĐ đã ký':'Dự thảo VB hướng dẫn TĐ';}
+  function ensureArtifacts(r){if(r.guidance)artifact(r.guidance,mainPaper(r,'outgoing'),(r.kind==='GNV'?'VB_GNV_TCT_':W.signatureValid(r,r.guidance)?'VB_Huong_dan_XD_KHPTM_TD_':'Du_thao_VB_Huong_dan_XD_KHPTM_TD_')+r.data.year+'_v'+r.revision+'.docx');
+    if(r.submission)artifact(r.submission,mainPaper(r,'submission'),(r.kind==='GNV'?'To_trinh_GNV_TCT_':'To_trinh_LDTD_Huong_dan_XD_KHPTM_')+r.data.year+'_v'+r.revision+'.docx');r.files.filter(f=>f.infoKind).forEach(f=>artifact(f,infoPaper(f.data,f.infoKind),(f.infoKind==='request'?'VB_xin_y_kien_huong_dan_':'VB_phan_hoi_y_kien_')+r.data.year+'_v'+f.version+'.docx'));}
   function visibleFiles(r){ensureArtifacts(r);const q=W.requestTask(r,r.viewer);if(q){const req=r.files.find(f=>f.id===q.requestDocument.id)||q.requestDocument;return [req,...r.files.filter(f=>f.requestId===q.id)];}
     const files=[...(r.guidance?[r.guidance]:[]),...(r.submission?[r.submission]:[]),...r.files];if(r.source){const parent=records.get(r.source.id);if(parent?.guidance)files.unshift({...parent.guidance,source:true});}return files;}
   function previewFile(id){const r=current(),file=visibleFiles(r).find(f=>f.id===id);if(!file)return;document.getElementById('khptmPreviewTitle').textContent=file.name||id;const host=document.getElementById('khptmPreviewPaper');
@@ -218,12 +234,12 @@
     document.getElementById('khptmPreviewModal').classList.add('show');}
   function preview(kind){run(()=>{const r=current();if(W.canEdit(r,r.viewer)&&r.phase!=='IMPORT'){W.save(r,r.viewer,readForm());W.prepare(r,r.viewer);ensureArtifacts(r);}const file=kind==='submission'?r.submission:kind==='source'?records.get(r.source?.id)?.guidance:r.guidance;if(file)previewFile(file.id);});}
   function actions(r){const a=r.viewer,q=W.requestTask(r,a);let html='';if(W.canEdit(r,a))html+=button('Lưu nháp','kh1.save()');
-    if(r.guidance||r.phase==='DRAFT')html+=button(r.kind==='GNV'?'Xem VB GNV':'Xem hướng dẫn','kh1.preview(\'outgoing\')');if(r.kind==='GNV'&&r.submission)html+=button('Xem Tờ trình LĐ TCT','kh1.preview(\'submission\')');
+    if(r.guidance||r.phase==='DRAFT')html+=button(r.kind==='GNV'?'Xem VB GNV':r.issue.issued?'Xem VB hướng dẫn':W.signatureValid(r,r.guidance)?'Xem VB hướng dẫn đã ký':'Xem dự thảo VB hướng dẫn','kh1.preview(\'outgoing\')');if(r.submission)html+=button(r.kind==='GNV'?'Xem Tờ trình LĐ TCT':'Xem Tờ trình LĐ TĐ','kh1.preview(\'submission\')');
     if(W.canAssign(r,a))html+=button(r.gnv?'Mở hồ sơ GNV TCT':'Giao nhiệm vụ','kh1.assignment()',true,'khptm-emphasis');
     if(r.phase==='IMPORT'&&W.canEdit(r,a))html+=button('Ghi nhận VB đã ban hành','kh1.recordExternal()',true,'khptm-emphasis');
-    if(W.canSign(r,a))html+=button(a==='ktLead'?'Ký số Tờ trình':r.kind==='GNV'?'Ký số VB GNV':'Ký số hướng dẫn','kh1.sign()',true,'khptm-emphasis');
+    if(W.canSign(r,a))html+=button(['ktLead','tdBanLead'].includes(a)?'Ký số Tờ trình':r.kind==='GNV'?'Ký số VB GNV':'Ký số VB hướng dẫn','kh1.sign()',true,'khptm-emphasis');
     if(W.canApprove(r,a))html+=button('Duyệt ý kiến','kh1.approve()',true,'khptm-emphasis');
-    if((W.canSign(r,a)||W.canApprove(r,a)||r.receipt.purpose==='ASSIGN_REVISE'&&W.owns(r,a))&&(!q||q.receipt.purpose==='CONSULT_REVIEW'))html+=button('Trả lại','kh1.transfer(\''+(q?'ktPM':W.pm(r))+'\')',true,'khptm-danger');
+    if((W.canSign(r,a)||W.canApprove(r,a)||['ASSIGN_REVISE','ASSIGN_TD_REVISE'].includes(r.receipt.purpose)&&W.owns(r,a))&&(!q||q.receipt.purpose==='CONSULT_REVIEW'))html+=button('Trả lại','kh1.transfer(\''+(q?'ktPM':W.pm(r))+'\')',true,'khptm-danger');
     if(W.canIssue(r,a))html+=button('Ban hành','kh1.issue()',true,'khptm-emphasis');
     if(W.allowed(r,a).length)html+=button('Chuyển','kh1.transfer()',true,'khptm-emphasis');if(r.kind==='GNV')html+=button('Hồ sơ hướng dẫn nguồn','kh1.open(\''+r.source.id+'\')');return html;}
   function render(){const r=current();if(!r)return;if(W.canEdit(r,r.viewer)&&r.phase!=='IMPORT')run(()=>W.prepare(r,r.viewer));ensureArtifacts(r);
@@ -233,16 +249,16 @@
     context.textContent=receipt?'Người chuyển: '+(W.roles[receipt.from]||'Khởi tạo')+' · '+(purposeNames[receipt.purpose]||state(r)):'Chưa được giao nhiệm vụ xử lý';
     const ids=['khptmPanelSpecialist','khptmPanelUnitLeader','khptmPanelLDTCT','khptmPanelClerk'];ids.forEach(id=>{document.getElementById(id).innerHTML='';document.getElementById(id).classList.remove('active');});
     const q=W.requestTask(r,r.viewer),isPM=['tdPM','ktPM'].includes(r.viewer)&&!q,clerk=['tdClerk','tctClerk'].includes(r.viewer);
-    const target=isPM?'khptmPanelSpecialist':clerk?'khptmPanelClerk':r.viewer==='ktLead'?'khptmPanelUnitLeader':'khptmPanelLDTCT';
-    let html=isPM?form(r):section('Preview văn bản','<div class="khptm-doc-preview"><div class="khptm-paper">'+(q?infoPaper(q.receipt.purpose==='CONSULT_REVIEW'?r.files.find(f=>f.id===q.response?.files.at(-1))?.data||{issuer:'Ban KT',recipient1:'Tập đoàn',period:r.data.year,content:q.response?.text,scope:r.data.types.join(' · ')}:q.requestDocument.data,q.receipt.purpose==='CONSULT_REVIEW'?'supply':'request'):W.canReceive(r,r.viewer)?mainPaper(r,r.viewer==='ktLead'&&r.kind==='GNV'?'submission':'outgoing'):'<p>Vai trò này chưa được chuyển hồ sơ để xử lý.</p>')+'</div></div>');
-    if(clerk&&W.owns(r,r.viewer)&&(W.canIssue(r,r.viewer)||r.issue.issued))html+=section('Cấp số, hoàn thiện thể thức và ban hành','<div class="khptm-issue-grid">'+issueFields(r)+'</div>');
+    const target=isPM?'khptmPanelSpecialist':clerk?'khptmPanelClerk':['ktLead','tdBanLead'].includes(r.viewer)?'khptmPanelUnitLeader':'khptmPanelLDTCT';
+    let html=isPM?form(r):section('Preview văn bản','<div class="khptm-doc-preview"><div class="khptm-paper">'+(q?infoPaper(q.receipt.purpose==='CONSULT_REVIEW'?r.files.find(f=>f.id===q.response?.files.at(-1))?.data||{issuer:'Ban KT',recipient1:'Tập đoàn',period:r.data.year,content:q.response?.text,scope:r.data.types.join(' · ')}:q.requestDocument.data,q.receipt.purpose==='CONSULT_REVIEW'?'supply':'request'):W.canReceive(r,r.viewer)?mainPaper(r,(r.viewer==='tdBanLead'&&r.kind==='GUIDANCE'||r.viewer==='ktLead'&&r.kind==='GNV')?'submission':'outgoing'):'<p>Vai trò này chưa được chuyển hồ sơ để xử lý.</p>')+'</div></div>');
+    if(clerk&&W.owns(r,r.viewer)&&(W.canIssue(r,r.viewer)||r.issue.issued))html=section('Văn bản ban hành','<div class="khptm-note"><b>Văn bản:</b> '+esc(guidanceLabel(r))+'</div><div class="khptm-issue-grid" style="margin-bottom:12px">'+issueFields(r)+'</div><div class="khptm-doc-preview"><div class="khptm-paper" id="kh1ClerkPaper">'+mainPaper(r,'outgoing')+'</div></div><div class="khptm-output"><b>Trạng thái:</b> '+esc(r.issue.issued?'Đã ban hành':W.signatureValid(r,r.guidance)?'Đã ký số – chờ ban hành':'Chờ lãnh đạo ký')+'</div>');
     document.getElementById(target).innerHTML=html+'<div id="kh1Feedback" hidden></div>';document.getElementById(target).classList.add('active');renderExtended(r);renderList();}
   function fileRow(f,i,r){const generated=['guidance','gnv','submission'].includes(f.kind),issuer=f.source?'Tập đoàn':f.author?W.roles[f.author].replace(/^PM /,''):r.kind==='GNV'?'VNPT Net':'Tập đoàn',number=f.source?r.source.issue.number:f===r.guidance&&r.issue.issued?r.issue.number:f.number||'';
-    return '<tr><td>'+(i+1)+'</td><td class="center">'+(f.signed?'☒':'☐')+'</td><td class="center"><input type="checkbox" checked disabled></td><td class="center"><input type="checkbox" '+(generated&&!f.source?'checked ':'')+'disabled></td><td class="center"><input type="checkbox" '+(!generated||f.source?'checked ':'')+'disabled></td><td>'+esc(number||'Chưa cấp số')+'</td><td>'+esc(f===r.guidance?r.issue.eoffice||'':'')+'</td><td>'+esc(issuer)+'</td><td>'+esc(W.roles[f.signer]||f.signerName||'--')+'</td><td>'+esc(f.source?'Hướng dẫn TĐ căn cứ':({guidance:'Hướng dẫn TĐ',gnv:'VB GNV TCT',submission:'Tờ trình',request:'VB yêu cầu góp ý',response:'VB phản hồi ý kiến'})[f.kind]||f.group||'Hồ sơ liên quan')+'</td><td><span class="pm-ext-file" onclick="kh1.previewFile(\''+f.id+'\')">'+esc(f.name)+'</span></td><td>'+esc(W.roles[f.author||W.pm(r)])+'</td><td>'+esc(f.time||'')+'</td><td></td><td></td><td>'+button('Xem',"kh1.previewFile('"+f.id+"')",true,'pm-ext-action')+' <a class="pm-ext-action" download="'+esc(f.name)+'" href="'+esc(f.url||'#')+'">Tải</a></td></tr>';}
+    return '<tr><td>'+(i+1)+'</td><td class="center">'+(f.signed?'☒':'☐')+'</td><td class="center"><input type="checkbox" checked disabled></td><td class="center"><input type="checkbox" '+(generated&&!f.source?'checked ':'')+'disabled></td><td class="center"><input type="checkbox" '+(!generated||f.source?'checked ':'')+'disabled></td><td>'+esc(number||'Chưa cấp số')+'</td><td>'+esc(f===r.guidance?r.issue.eoffice||'':'')+'</td><td>'+esc(issuer)+'</td><td>'+esc(W.roles[f.signer]||f.signerName||'--')+'</td><td>'+esc(f.source?'Hướng dẫn TĐ căn cứ':(f.kind==='guidance'?guidanceLabel(r):f.kind==='submission'?r.kind==='GNV'?'Tờ trình LĐ TCT':'Tờ trình LĐ TĐ':({gnv:'VB GNV TCT',request:'VB yêu cầu góp ý',response:'VB phản hồi ý kiến'})[f.kind])||f.group||'Hồ sơ liên quan')+'</td><td><span class="pm-ext-file" onclick="kh1.previewFile(\''+f.id+'\')">'+esc(f.name)+'</span></td><td>'+esc(W.roles[f.author||W.pm(r)])+'</td><td>'+esc(f.time||'')+'</td><td></td><td></td><td>'+button('Xem',"kh1.previewFile('"+f.id+"')",true,'pm-ext-action')+' <a class="pm-ext-action" download="'+esc(f.name)+'" href="'+esc(f.url||'#')+'">Tải</a></td></tr>';}
   function uploadRow(r){if(!sharedUpload)return '';const table=sharedUpload.cloneNode(true),row=table.querySelector('tbody tr');row.cells[0].querySelector('input').disabled=true;
     row.querySelector('input[type=file]').id='kh1Upload';row.cells[5].querySelector('select').innerHTML='<option>Hồ sơ liên quan</option><option>VB TĐ đã ban hành</option>'+(W.canSign(r,r.viewer)?'<option>Văn bản đã ký</option>':'');row.querySelector('.linklike').setAttribute('onclick',"document.getElementById('kh1Upload').value=''");
     return table.outerHTML+'<div class="pm-ext-add-links">'+(W.canEdit(r,r.viewer)&&r.phase!=='IMPORT'?'<span onclick="kh1.save()">Thêm file từ template</span>':'')+'<span onclick="document.getElementById(\'kh1Upload\').click()">Thêm File</span><span onclick="kh1.saveUpload()">Lưu tài liệu</span></div>';}
-  function renderExtended(r){const host=document.getElementById('khptmExtended'),table=sharedFileTable.cloneNode(true);table.querySelector('tbody').innerHTML=visibleFiles(r).map((f,i)=>fileRow(f,i,r)).join('');const d=draft(r),leader=['tdLeader','ktLead','tctLeader'].includes(r.viewer),active=r.tab||(['tdPM','ktPM'].includes(r.viewer)?'files':'exchange');
+  function renderExtended(r){const host=document.getElementById('khptmExtended'),table=sharedFileTable.cloneNode(true);table.querySelector('tbody').innerHTML=visibleFiles(r).map((f,i)=>fileRow(f,i,r)).join('');const d=draft(r),leader=['tdBanLead','tdLeader','ktLead','tctLeader'].includes(r.viewer),active=r.tab||(['tdPM','ktPM'].includes(r.viewer)?'files':'exchange');
     const request=W.canEdit(r,r.viewer)&&r.kind==='GUIDANCE'&&r.mode==='TD'&&!r.requests.some(q=>q.status!=='DONE'),supply=W.canProvide(r,r.viewer);
     host.innerHTML='<div class="pm-ims-extended"><span class="pm-ext-caption">Thông tin mở rộng</span>'+(request?button('Tạo VB yêu cầu góp ý / cung cấp thông tin',"kh1.info('request')"):supply?button('Tạo VB phản hồi',"kh1.info('supply')"):'')+
       '<div class="pm-ext-tabs">'+[['files','Tài liệu đính kèm'],['route','Lịch sử luân chuyển'],['exchange','Lịch sử trao đổi']].map(([name,label])=>'<div class="pm-ext-tab '+(active===name?'active':'')+'" data-kh1-ext="'+name+'" onclick="kh1.tab(\''+name+'\')">'+label+'</div>').join('')+'</div>'+ 
@@ -264,14 +280,14 @@
       fields:kind==='request'?[['unit','Đơn vị cần cung cấp ý kiến'],['year','Năm KHPTM'],['scope','Phạm vi / mảng KHPTM'],['content','Nội dung yêu cầu','textarea'],['deadline','Hạn phản hồi','date']]:[['recipient1','Đơn vị nhận'],['period','Năm KHPTM'],['scope','Phạm vi / mảng KHPTM'],['content','Ý kiến phản hồi','textarea']],
       renderHTML:(data,kind)=>infoPaper(data,kind),canEdit:()=>current()===r&&r.viewer===a&&W.receiptFor(r,a)===snapshot&&(kind==='request'?W.canEdit(r,a):W.canProvide(r,a)),
       onSave:(data,kind)=>{const f=W.storeConsult(r,a,kind,data);ensureArtifacts(r);const d=draft(r);d.attachments.push(f.id);d.text=data.content;closeKHPTM2InfoModal();r.tab='exchange';render();notify('Đã gắn VB vào trao đổi; nhấn Gửi để lưu phản hồi');}});});}
-  function sign(){run(()=>{const r=current();W.sign(r,r.viewer);log(r,'Ký '+(r.viewer==='ktLead'?'Tờ trình':r.kind==='GNV'?'VB GNV TCT':'hướng dẫn TĐ'));render();notify('Đã ký văn bản (demo)');});}
+  function sign(){run(()=>{const r=current();W.sign(r,r.viewer);log(r,'Ký '+(['ktLead','tdBanLead'].includes(r.viewer)?'Tờ trình':r.kind==='GNV'?'VB GNV TCT':'VB hướng dẫn TĐ'));render();notify('Đã ký văn bản (demo)');});}
   function approve(){run(()=>{const r=current();W.approve(r,r.viewer);log(r,'Duyệt ý kiến Ban KT');render();notify('Đã duyệt phản hồi');});}
-  function issue(){run(()=>{const r=current();rememberIssue();W.issue(r,r.viewer,r.issueDraft||{});if(r.kind==='GNV')W.linkAssignment(records.get(r.source.id),r);log(r,'Ban hành '+r.issue.number);render();notify('Đã ban hành; dùng Chuyển để gửi người nhận');});}
+  function issue(){run(()=>{const r=current();rememberIssue();W.issue(r,r.viewer,{...r.issueDraft,serial:r.issueDraft?.number,number:r.issueDraft?.number?issueNumber(r):''});if(r.kind==='GNV')W.linkAssignment(records.get(r.source.id),r);log(r,'Ban hành '+r.issue.number);render();notify('Đã ban hành; dùng Chuyển để gửi người nhận');});}
   function recordExternal(){run(()=>{const r=current();W.save(r,r.viewer,readForm());rememberIssue();const file=r.files.filter(f=>f.group==='VB TĐ đã ban hành').at(-1);W.recordExternal(r,r.viewer,{...r.issueDraft,confirmed:document.getElementById('kh1ExternalConfirmed')?.checked},file);log(r,'Ghi nhận hướng dẫn TĐ đã ký/ban hành ngoài hệ thống');render();notify('Đã ghi nhận văn bản TĐ; có thể Giao nhiệm vụ');});}
   function transferRow(f,r){const row=sharedTransferRow.cloneNode(true);row.removeAttribute('id');const buttons=Array.from(row.querySelectorAll('button'));buttons.filter(b=>/openInitialSignModal|openDigitalSignModal/.test(b.getAttribute('onclick')||'')).forEach(b=>b.remove());
     buttons[0].setAttribute('onclick',"this.parentElement.querySelector('input').checked=false;this.closest('.route-file-line').style.display='none'");buttons[1].setAttribute('onclick',"kh1.previewFile('"+f.id+"')");const link=document.createElement('a');link.className=buttons[2].className;link.textContent=buttons[2].textContent;link.href=f.url||'#';link.download=f.name;buttons[2].replaceWith(link);
     const check=row.querySelector('input');check.checked=true;check.setAttribute('checked','');check.dataset.kh1TransferFile=f.id;row.querySelector('.route-file-name').textContent=f.name+' (Người gửi: '+W.roles[r.viewer]+')';
-    return '<div class="route-file-line"><div class="route-file-label">'+esc(({guidance:'Hướng dẫn Tập đoàn',gnv:'VB GNV TCT',submission:'Tờ trình LĐ TCT',request:'VB yêu cầu góp ý',response:'VB phản hồi'})[f.kind]||'Văn bản liên quan')+'</div><div class="route-file-main">'+row.outerHTML+'</div></div>';}
+    return '<div class="route-file-line"><div class="route-file-label">'+esc(f.source?'Hướng dẫn TĐ căn cứ':f.kind==='guidance'?guidanceLabel(r):f.kind==='submission'?r.kind==='GNV'?'Tờ trình LĐ TCT':'Tờ trình LĐ TĐ':({gnv:'VB GNV TCT',request:'VB yêu cầu góp ý',response:'VB phản hồi'})[f.kind]||'Văn bản liên quan')+'</div><div class="route-file-main">'+row.outerHTML+'</div></div>';}
   function transfer(preset){run(()=>{const r=current();remember();if(W.canEdit(r,r.viewer)&&r.phase!=='IMPORT'){W.save(r,r.viewer,readForm());W.prepare(r,r.viewer);ensureArtifacts(r);}
     const allowed=W.allowed(r,r.viewer);if(!allowed.length)throw Error('Chưa có hướng chuyển theo nhiệm vụ');const q=W.requestTask(r,r.viewer),panel=document.getElementById('routePanelFiles'),box=document.getElementById('transferModal');
     modal={id:r.id,actor:r.viewer,receipt:W.receiptFor(r,r.viewer),revision:r.revision,requestId:q?.id,responseRevision:q?.responseRevision,
@@ -300,7 +316,7 @@
     if(detail.note||attached.length)r.exchange.unshift({actor,text:detail.note,files:attached,time:now()});r.drafts[snap.actor]={text:'',attachments:[]};hideTransferModal();r.tab=['tdPM','ktPM'].includes(r.viewer)?'files':'exchange';render();window.scrollTo({top:0,behavior:'smooth'});notify('Đã chuyển đúng người nhận đã chọn');});};
   function seed(){const r=W.create('HD-MAU-2027');records.set(r.id,r);const external=W.create('HD-NGOAI-MAU-2027','EXTERNAL');
     const f={name:'Huong_dan_KHPTM_TD_2027_mau.docx',demo:true};W.recordExternal(external,'ktPM',{number:'HD-KHPTM-2027 (mẫu)',date:'2026-09-30',eoffice:'',recipients:'Ban KT – VNPT NET',confirmed:true},f);records.set(external.id,external);log(external,'Văn bản mẫu đã ban hành; dùng để thử Giao nhiệm vụ','Hệ thống');}
-  window.kh1={open,create,openList,reset,setRole,mode,fieldChanged,typesChanged,save,assignment,preview,previewFile,rememberIssue,saveUpload,exchangeUpload,remember,sendExchange,info,sign,approve,issue,recordExternal,tab,transfer};
+  window.kh1={open,create,openList,reset,setRole,mode,fieldChanged,typesChanged,save,assignment,preview,previewFile,rememberIssue,takeNumber,saveUpload,exchangeUpload,remember,sendExchange,info,sign,approve,issue,recordExternal,tab,transfer};
   window.openKHPTMModule=openList;window.openKHPTMCreate=create;window.openKHPTMProcess=id=>open(id==='K1'?'HD-MAU-2027':id==='DONE'?'HD-NGOAI-MAU-2027':id);
   window.resetKHPTMFlow=reset;window.switchKHPTMRole=setRole;window.renderKHPTM=render;window.openKHPTMPreview=preview;window.openKhptmTransfer=transfer;
   window.sendKHPTMExchange=sendExchange;window.issueKHPTM=issue;window.khptmSignByLDTCT=sign;window.khptmSignSubmissionByUnitLeader=sign;
