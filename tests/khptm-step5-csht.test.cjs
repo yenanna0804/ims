@@ -70,6 +70,13 @@ test('Không gửi sang đơn vị khác hoặc bỏ tài liệu yêu cầu đã
  const {request:q}=W.transfer(r,'pm','leadUnit',detail(r));assert.notEqual(q.documents.find(x=>x.id===f.id).document,f.document);
  const snapshot=q.documents.find(x=>x.id===f.id).document.content;f.document.content='Nội dung bị thay bên nguồn';assert.equal(q.documents.find(x=>x.id===f.id).document.content,snapshot);
 });
+test('5.4 dùng Trao đổi và hồ sơ đính kèm, không dùng mẫu cung cấp cáp quang',()=>{
+ const {r,q}=reviewTask();W.transfer(r,'leadUnit','pmUnit',detail(r,'Phân công',q.receipt.files));
+ assert.throws(()=>W.storeInfoDocument(r,'pmUnit','supply','2.2',{issuer:q.unit,recipient1:'Ban KT',period:'2027'},{}),/Lịch sử trao đổi/);
+ const file={id:'kq-csht.pdf',infoRequestId:q.id};r.files.push(file);W.saveResponse(r,'pmUnit','Rà soát nguồn và điều hòa tại node chính',[file.id]);
+ W.transfer(r,'pmUnit','leadUnit',detail(r,'Trình kết quả',[...q.receipt.files,file.id]));W.approveData(r,'leadUnit');W.transfer(r,'leadUnit','pm',detail(r,'Kết quả đã duyệt',q.receipt.files));
+ assert.equal(r.csht.stage,'SCALE');assert.deepEqual(q.response.files,[file.id]);
+});
 test('5.5 có vòng trả sửa quy mô, không quay lại phân công 5.4',()=>{
  const {r,q}=reviewTask();completeReview(r,q);prepare(r);W.transfer(r,'pm','lead',detail(r));W.transfer(r,'lead','pm',detail(r,'Bổ sung phạm vi quy mô'));
  assert.equal(r.csht.stage,'SCALE');assert.ok(W.canEdit(r,'pm'));W.saveDraft(r,'pm',{...r.data,location:'Node chính miền Bắc'},r.rows);

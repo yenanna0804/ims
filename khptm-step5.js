@@ -52,6 +52,7 @@
   function storeInfoDocument(r, actor, kind, code, data, artifact) {
     const q = infoRequest(r, actor);
     if (kind === 'request' ? !canEdit(r, actor) || !hasBasis(r) : !canProvide(r, actor)) throw Error('Bạn chưa được giao nhiệm vụ tạo văn bản này');
+    if (kind === 'supply' && q?.kind === 'CSHT_REVIEW') throw Error('Ghi kết quả rà soát CSHT và đính kèm hồ sơ tại Lịch sử trao đổi');
     if (!['request','supply'].includes(kind) || !['2.1','2.2'].includes(code)) throw Error('Biểu mẫu không hợp lệ');
     if (kind === 'request' && (!requestTargets(r).some(p => p.unit === data.unit) || !data.content?.trim() || !data.deadline)) throw Error('Nhập đơn vị nhận đúng RACI, nội dung yêu cầu và thời hạn cung cấp');
     if (kind === 'supply' && (!data.issuer?.trim() || !data.recipient1?.trim() || !data.period?.trim())) throw Error('Nhập đơn vị ban hành, đơn vị nhận và giai đoạn đề xuất');
@@ -327,7 +328,7 @@
   }
   function paintFeedback(message,invalid){const host=document.getElementById('kh5Feedback');if(host){host.hidden=false;host.className=invalid?'khptm-note':'khptm-output';host.textContent=message;host.setAttribute('role',invalid?'alert':'status');}}
   const exchangeDraft = r => {const d=r.drafts[r.viewer] || (r.drafts[r.viewer]={text:'',file:null});d.attachments ||= [];return d;};
-  function infoPermission(r, kind) { return kind === 'request' ? edit(r) && !!r.basis : W.canProvide(r, r.viewer); }
+  function infoPermission(r, kind) { return kind === 'request' ? edit(r) && !!r.basis : W.canProvide(r, r.viewer) && W.infoRequest(r, r.viewer)?.kind !== 'CSHT_REVIEW'; }
   const button = (label, action, enabled = true, cls = '') => '<button type="button" class="' + cls + '" onclick="' + esc(action) + '"' + (enabled ? '' : ' disabled') + '>' + esc(label) + '</button>';
   const section = (title, body) => '<div class="section"><h3>' + title + '</h3><div class="body">' + body + '</div></div>';
   const moduleTitle = 'Lựa chọn PAKT, CN, tính toán quy mô';
@@ -569,8 +570,10 @@
   function removePending(index) {const r=current(),d=exchangeDraft(r);if(!own(r)&&!W.receiptFor(r,r.viewer))return notify('Vai trò này chưa nhận nhiệm vụ',true);if(index==='upload'){if(d.file)URL.revokeObjectURL(d.file.url);d.file=null;}else d.attachments.splice(Number(index),1);renderExtended(r);}
   function renderExtended(r) {
     const host = document.getElementById('kh5Extended'); host.innerHTML = extTemplate.replaceAll('khptm2', 'kh5').replaceAll('switchKHPTM2ExtTab', 'kh5.extTab').replaceAll('sendKHPTM2Exchange', 'kh5.sendExchange').replaceAll('kh5ExchangeFileChanged', 'kh5.exchangeFileChanged');
-    const kind=r.viewer==='pm'?'request':W.provider(r.viewer)?.pm===r.viewer?'supply':null;
-    if(kind){const btn=document.createElement('button');btn.className='small kh-info-create';btn.textContent=W.isCSHT(r) && W.cshtStage(r)==='REQUEST' && kind==='request'?'Tạo VB yêu cầu rà soát CSHT':W.infoRequest(r,r.viewer)?.kind==='CSHT_REVIEW' && kind==='supply'?'Tạo VB kết quả rà soát CSHT':kind==='request'?'Tạo VB yêu cầu cung cấp thông tin':'Tạo VB cung cấp thông tin';btn.disabled=kind==='request'?!edit(r):!infoPermission(r,kind);btn.title=btn.disabled?'Chưa nhận nhiệm vụ tạo văn bản này':'';btn.onclick=()=>openInfo(kind);host.querySelector('.pm-ext-caption').after(btn);}
+    // RACI 5.4: đơn vị trực thuộc ghi kết quả/đề xuất ở Trao đổi, kèm hồ sơ nếu có.
+    // Không dùng mẫu SOP1-CQ-1 (cáp quang) cho kết quả rà soát CSHT.
+    const kind=r.viewer==='pm'?'request':W.provider(r.viewer)?.pm===r.viewer && !(W.isCSHT(r) && r.viewer===W.cshtUnit.pm)?'supply':null;
+    if(kind){const btn=document.createElement('button');btn.className='small kh-info-create';btn.textContent=W.isCSHT(r) && W.cshtStage(r)==='REQUEST' && kind==='request'?'Tạo VB yêu cầu rà soát CSHT':kind==='request'?'Tạo VB yêu cầu cung cấp thông tin':'Tạo VB cung cấp thông tin';btn.disabled=kind==='request'?!edit(r):!infoPermission(r,kind);btn.title=btn.disabled?'Chưa nhận nhiệm vụ tạo văn bản này':'';btn.onclick=()=>openInfo(kind);host.querySelector('.pm-ext-caption').after(btn);}
     const row = (file, i, action) => '<tr><td class="center">' + i + '</td><td class="center">' + (file.signatures?.length || file.signed ? '☒' : '☐') + '</td><td class="center"><input type="checkbox" checked disabled></td><td class="center"><input type="checkbox"' + (['submission', 'report'].includes(file.docType) ? ' checked' : '') + ' disabled></td><td class="center"><input type="checkbox"' + (!['submission', 'report'].includes(file.docType) ? ' checked' : '') + ' disabled></td><td>' + esc(file.number || '') + '</td><td>' + esc(file.eoffice || '') + '</td><td>' + esc(file.issuer || r.data.unit) + '</td><td>' + esc(file.signer || '--') + '</td><td>' + esc(file.group || (file.docType === 'submission' ? 'Tờ trình đề xuất' : file.docType === 'report' ? 'Báo cáo đề xuất' : file.docType === 'catalog' ? 'File danh mục' : 'Hồ sơ liên quan')) + '</td><td><span class="pm-ext-file" onclick="' + action + '">' + esc(file.name) + '</span></td><td>' + esc(file.actor || '') + '</td><td>' + esc(file.time || '') + '</td><td></td><td></td><td>' + button('Xem', action, true, 'pm-ext-action') + (file.url ? ' <a class="pm-ext-action" href="' + file.url + '" download="' + esc(file.name) + '">Tải</a>' : '') + '</td></tr>';
     host.querySelector('.pm-ext-table tbody').innerHTML = visibleFiles(r).map((f, i) => row(f, i + 1, 'kh5.previewReceivedFile(' + i + ')')).join('');
     if (!r.submission && !r.files.some(f => f.generated) && edit(r)) {
@@ -587,6 +590,7 @@
     khInfo.renderExchangeInto(host.querySelector('#kh5Exchange'), r.exchange);
     const draft = exchangeDraft(r);
     const ta = host.querySelector('#kh5QuickExchange'); ta.value = draft.text; ta.oninput = () => { draft.text = ta.value; };
+    if (W.canProvide(r,r.viewer) && W.infoRequest(r,r.viewer)?.kind === 'CSHT_REVIEW') ta.placeholder = 'Nhập kết quả rà soát hiện trạng, đề xuất trang bị CSHT; đính kèm hồ sơ nếu có, rồi nhấn Gửi để trình LĐ đơn vị duyệt.';
     const canExchange = own(r) || !!W.receiptFor(r, r.viewer); ta.disabled = !canExchange;
     host.querySelector('#kh5ExchangeFile').disabled = !canExchange;
     host.querySelector('[onclick="kh5.sendExchange()"]')?.toggleAttribute('disabled', !canExchange);
