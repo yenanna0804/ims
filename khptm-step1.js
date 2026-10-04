@@ -161,6 +161,16 @@
   const W=KHStep1, records=new Map(), page=document.getElementById('khptm-process');
   let currentId='', counter=1, modal=null;
   const current=()=>records.get(currentId), today=()=>new Date().toISOString().slice(0,10), now=()=>new Date().toLocaleString('vi-VN',{hour12:false});
+  const headerRole=document.getElementById('headerRole'), defaultHeaderOptions=headerRole?.innerHTML;
+  let ownsHeader=false;
+  function syncHeader(){const r=current();if(!r||!page.classList.contains('active')||!headerRole)return;
+    headerRole.innerHTML=W.roleKeys(r).map(a=>'<option value="'+a+'"'+(a===r.viewer?' selected':'')+'>'+W.roles[a]+'</option>').join('');
+    document.getElementById('headerUserText').textContent=W.roles[r.viewer];ownsHeader=true;}
+  const beforeShowPage=showPage;
+  showPage=function(id){if(id!=='khptm-process'&&ownsHeader){headerRole.innerHTML=defaultHeaderOptions;ownsHeader=false;syncRoleHeader();}
+    const result=beforeShowPage.apply(this,arguments);if(id==='khptm-process')syncHeader();return result;};
+  const beforeHeaderRole=switchRoleFromHeader;
+  switchRoleFromHeader=function(role){if(page.classList.contains('active')&&current())return setRole(role);return beforeHeaderRole.apply(this,arguments);};
   const section=(title,body)=>'<div class="section"><h3>'+esc(title)+'</h3><div class="body">'+body+'</div></div>';
   const button=(label,action,enabled=true,cls='')=>'<button type="button" class="'+cls+'" onclick="'+esc(action)+'"'+(enabled?'':' disabled')+'>'+esc(label)+'</button>';
   const run=fn=>{try{return fn();}catch(e){notify(e.message,true);return false;}};
@@ -180,7 +190,11 @@
   function open(id){if(modal)hideTransferModal();closeKHPTM2InfoModal();closeKHPTMPreview();currentId=records.has(id)?id:'HD-MAU-2027';const r=current();r.viewer=r.owner;r.tab=['tdPM','ktPM'].includes(r.viewer)?'files':'exchange';showPage('khptm-process');document.getElementById('nav-khptm')?.classList.add('active');render();}
   function create(){const id='HD-'+counter++;records.set(id,W.create(id));open(id);}
   function openList(){if(modal)hideTransferModal();closeKHPTM2InfoModal();closeKHPTMPreview();renderList();showPage('khptm-list');document.getElementById('nav-khptm')?.classList.add('active');}
-  function renderList(){const host=document.getElementById('kh1ListRows');if(!host)return;host.innerHTML=Array.from(records.values()).map((r,i)=>'<tr><td class="center">'+(i+1)+'</td><td class="center">'+esc(r.data.year)+'</td><td><span class="khptm-list-title" onclick="kh1.open(\''+r.id+'\')">'+esc(r.data.name)+'</span><div class="mini">'+(r.kind==='GNV'?'Hồ sơ GNV TCT · nguồn '+esc(r.source.issue.number):r.mode==='EXTERNAL'?'Ghi nhận VB TĐ đã ban hành ngoài hệ thống':'Hướng dẫn TĐ · TĐ AR, Ban KT C,I')+'</div></td><td>'+esc(r.data.types.join(' · '))+'</td><td class="center">'+esc(formatDateVN(r.data.deadline))+'</td><td class="center">'+esc(r.kind==='GNV'?r.issue.number||'--':r.gnv?.number||'--')+'</td><td><span class="badge '+(r.issue.issued?'bgreen':'borange')+'">'+esc(state(r))+'</span></td><td class="center">'+button('Mở',"kh1.open('"+r.id+"')",true,'small')+'</td></tr>').join('');}
+  function listActions(r){return button('Mở',"kh1.open('"+r.id+"')",true,'small')+
+    (r.submission||r.mode==='TD'?button('Xem tờ trình',"kh1.previewRecord('"+r.id+"','submission')",true,'small'):'')+
+    (r.guidance||r.mode==='TD'?button(r.kind==='GNV'?'Xem VB GNV':r.issue.issued?'Xem VB hướng dẫn':W.signatureValid(r,r.guidance)?'Xem VB đã ký':'Xem dự thảo',"kh1.previewRecord('"+r.id+"','outgoing')",true,'small'):'');}
+  function previewRecord(id,kind){if(!records.has(id))return;open(id);preview(kind);}
+  function renderList(){const host=document.getElementById('kh1ListRows');if(!host)return;host.innerHTML=Array.from(records.values()).map((r,i)=>'<tr><td class="center">'+(i+1)+'</td><td class="center">'+esc(r.data.year)+'</td><td><span class="khptm-list-title" onclick="kh1.open(\''+r.id+'\')">'+esc(r.data.name)+'</span><div class="mini">'+(r.kind==='GNV'?'Hồ sơ GNV TCT · nguồn '+esc(r.source.issue.number):r.mode==='EXTERNAL'?'Ghi nhận VB TĐ đã ban hành ngoài hệ thống':'Hướng dẫn TĐ · TĐ AR, Ban KT C,I')+'</div></td><td>'+esc(r.data.types.join(' · '))+'</td><td class="center">'+esc(formatDateVN(r.data.deadline))+'</td><td class="center">'+esc(r.kind==='GNV'?r.issue.number||'--':r.gnv?.number||'--')+'</td><td><span class="badge '+(r.issue.issued?'bgreen':'borange')+'">'+esc(state(r))+'</span></td><td class="center"><div class="buttons">'+listActions(r)+'</div></td></tr>').join('');}
   function reset(){const old=current();if(!old)return;if(modal)hideTransferModal();closeKHPTM2InfoModal();
     const root=old.kind==='GNV'?records.get(old.source.id):old;const child=root.gnv?.id;if(child)records.delete(child);records.set(root.id,W.create(root.id,root.mode));open(root.id);notify('Đã reset hồ sơ mẫu và liên kết GNV trong chức năng này');}
   function setRole(a){const r=current();if(!W.roleKeys(r).includes(a))return;remember();if(modal)hideTransferModal();closeKHPTM2InfoModal();closeKHPTMPreview();r.viewer=a;r.tab=['tdPM','ktPM'].includes(a)?'files':'exchange';render();}
@@ -245,6 +259,7 @@
   function render(){const r=current();if(!r)return;if(W.canEdit(r,r.viewer)&&r.phase!=='IMPORT')run(()=>W.prepare(r,r.viewer));ensureArtifacts(r);
     page.querySelector('.titlebar h1').textContent=r.kind==='GNV'?'Lập, trình VB GNV phối hợp XD KHPTM TCT':'Thông báo/Hướng dẫn KHPTM';
     document.getElementById('khptmTopActions').innerHTML=actions(r);const sel=document.getElementById('khptmRole');sel.innerHTML=W.roleKeys(r).map(a=>'<option value="'+a+'"'+(a===r.viewer?' selected':'')+'>'+W.roles[a]+'</option>').join('');
+    syncHeader();
     let context=document.getElementById('kh1Context');if(!context){context=document.createElement('span');context.id='kh1Context';context.className='right-note';sel.parentElement.appendChild(context);}const receipt=W.receiptFor(r,r.viewer);
     context.textContent=receipt?'Người chuyển: '+(W.roles[receipt.from]||'Khởi tạo')+' · '+(purposeNames[receipt.purpose]||state(r)):'Chưa được giao nhiệm vụ xử lý';
     const ids=['khptmPanelSpecialist','khptmPanelUnitLeader','khptmPanelLDTCT','khptmPanelClerk'];ids.forEach(id=>{document.getElementById(id).innerHTML='';document.getElementById(id).classList.remove('active');});
@@ -316,7 +331,7 @@
     if(detail.note||attached.length)r.exchange.unshift({actor,text:detail.note,files:attached,time:now()});r.drafts[snap.actor]={text:'',attachments:[]};hideTransferModal();r.tab=['tdPM','ktPM'].includes(r.viewer)?'files':'exchange';render();window.scrollTo({top:0,behavior:'smooth'});notify('Đã chuyển đúng người nhận đã chọn');});};
   function seed(){const r=W.create('HD-MAU-2027');records.set(r.id,r);const external=W.create('HD-NGOAI-MAU-2027','EXTERNAL');
     const f={name:'Huong_dan_KHPTM_TD_2027_mau.docx',demo:true};W.recordExternal(external,'ktPM',{number:'HD-KHPTM-2027 (mẫu)',date:'2026-09-30',eoffice:'',recipients:'Ban KT – VNPT NET',confirmed:true},f);records.set(external.id,external);log(external,'Văn bản mẫu đã ban hành; dùng để thử Giao nhiệm vụ','Hệ thống');}
-  window.kh1={open,create,openList,reset,setRole,mode,fieldChanged,typesChanged,save,assignment,preview,previewFile,rememberIssue,takeNumber,saveUpload,exchangeUpload,remember,sendExchange,info,sign,approve,issue,recordExternal,tab,transfer};
+  window.kh1={open,create,openList,reset,setRole,mode,fieldChanged,typesChanged,save,assignment,preview,previewRecord,previewFile,rememberIssue,takeNumber,saveUpload,exchangeUpload,remember,sendExchange,info,sign,approve,issue,recordExternal,tab,transfer};
   window.openKHPTMModule=openList;window.openKHPTMCreate=create;window.openKHPTMProcess=id=>open(id==='K1'?'HD-MAU-2027':id==='DONE'?'HD-NGOAI-MAU-2027':id);
   window.resetKHPTMFlow=reset;window.switchKHPTMRole=setRole;window.renderKHPTM=render;window.openKHPTMPreview=preview;window.openKhptmTransfer=transfer;
   window.sendKHPTMExchange=sendExchange;window.issueKHPTM=issue;window.khptmSignByLDTCT=sign;window.khptmSignSubmissionByUnitLeader=sign;
