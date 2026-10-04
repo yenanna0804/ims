@@ -41,6 +41,7 @@
   const canProvide = (r,a) => requestTask(r,a)?.receipt.purpose==='CONSULT_WORK';
   const canReceive = (r,a) => owns(r,a) || !!requestTask(r,a) || !!r.views[a];
   const receiptFor = (r,a) => requestTask(r,a)?.receipt || (owns(r,a)?r.receipt:r.views[a]);
+  const primaryDocument = (r,a) => ['SIGN_TD_SUBMISSION','SIGN_SUBMISSION','ASSIGN_TD_REVISE','ASSIGN_REVISE'].includes(receiptFor(r,a)?.purpose)?'submission':'outgoing';
   const validSource = r => r.kind!=='GNV' || !!r.source && r.source.issue.issued && r.source.document.signed && r.source.revision===r.source.document.revision &&
     r.source.fingerprint===JSON.stringify([r.source.id,r.source.revision,r.source.data,r.source.issue,r.source.document.id,r.source.document.signed]);
   const validDocs = r => validSource(r) && r.receipt.fingerprint===fingerprint(r) && r.guidance?.revision===r.revision && r.guidance.fingerprint===fingerprint(r) &&
@@ -150,7 +151,7 @@
     r.owner=r.viewer=to;r.receipt=receipt;r.phase=phase;detail.co.concat(detail.view).forEach(x=>r.views[x]={...receipt,to:x,purpose:detail.co.includes(x)?'IMPLEMENT':'INFORMATION'});return receipt;
   }
   const roleKeys = r => r.kind==='GUIDANCE'?['tdPM','tdBanLead','tdLeader','tdClerk','ktPM','ktLead']:['ktPM','ktLead','tctLeader','tctClerk',...recipientUnits(r).flatMap(u=>[u.lead,u.pm])].filter((v,i,a)=>a.indexOf(v)===i);
-  root.KHStep1={types,roles,units,cutoff,deadline,create,pm,fingerprint,sourceFingerprint,owns,canEdit,canProvide,canReceive,requestTask,receiptFor,
+  root.KHStep1={types,roles,units,cutoff,deadline,create,pm,fingerprint,sourceFingerprint,owns,canEdit,canProvide,canReceive,requestTask,receiptFor,primaryDocument,
     canSign,canApprove,canIssue,canAssign,issuedGuidance,signatureValid,validDocs,save,prepare,sign,approve,issue,takeNumber,recordExternal,assignment,linkAssignment,recipientUnits,allowed,storeConsult,saveResponse,transfer,roleKeys};
   if(typeof module!=='undefined'&&module.exports)module.exports=root.KHStep1;
 })(typeof window!=='undefined'?window:globalThis);
@@ -265,7 +266,7 @@
     const ids=['khptmPanelSpecialist','khptmPanelUnitLeader','khptmPanelLDTCT','khptmPanelClerk'];ids.forEach(id=>{document.getElementById(id).innerHTML='';document.getElementById(id).classList.remove('active');});
     const q=W.requestTask(r,r.viewer),isPM=['tdPM','ktPM'].includes(r.viewer)&&!q,clerk=['tdClerk','tctClerk'].includes(r.viewer);
     const target=isPM?'khptmPanelSpecialist':clerk?'khptmPanelClerk':['ktLead','tdBanLead'].includes(r.viewer)?'khptmPanelUnitLeader':'khptmPanelLDTCT';
-    let html=isPM?form(r):section('Preview văn bản','<div class="khptm-doc-preview"><div class="khptm-paper">'+(q?infoPaper(q.receipt.purpose==='CONSULT_REVIEW'?r.files.find(f=>f.id===q.response?.files.at(-1))?.data||{issuer:'Ban KT',recipient1:'Tập đoàn',period:r.data.year,content:q.response?.text,scope:r.data.types.join(' · ')}:q.requestDocument.data,q.receipt.purpose==='CONSULT_REVIEW'?'supply':'request'):W.canReceive(r,r.viewer)?mainPaper(r,(r.viewer==='tdBanLead'&&r.kind==='GUIDANCE'||r.viewer==='ktLead'&&r.kind==='GNV')?'submission':'outgoing'):'<p>Vai trò này chưa được chuyển hồ sơ để xử lý.</p>')+'</div></div>');
+    let html=isPM?form(r):section('Preview văn bản','<div class="khptm-doc-preview"><div class="khptm-paper">'+(q?infoPaper(q.receipt.purpose==='CONSULT_REVIEW'?r.files.find(f=>f.id===q.response?.files.at(-1))?.data||{issuer:'Ban KT',recipient1:'Tập đoàn',period:r.data.year,content:q.response?.text,scope:r.data.types.join(' · ')}:q.requestDocument.data,q.receipt.purpose==='CONSULT_REVIEW'?'supply':'request'):W.canReceive(r,r.viewer)?mainPaper(r,W.primaryDocument(r,r.viewer)):'<p>Vai trò này chưa được chuyển hồ sơ để xử lý.</p>')+'</div></div>');
     if(clerk&&W.owns(r,r.viewer)&&(W.canIssue(r,r.viewer)||r.issue.issued))html=section('Văn bản ban hành','<div class="khptm-note"><b>Văn bản:</b> '+esc(guidanceLabel(r))+'</div><div class="khptm-issue-grid" style="margin-bottom:12px">'+issueFields(r)+'</div><div class="khptm-doc-preview"><div class="khptm-paper" id="kh1ClerkPaper">'+mainPaper(r,'outgoing')+'</div></div><div class="khptm-output"><b>Trạng thái:</b> '+esc(r.issue.issued?'Đã ban hành':W.signatureValid(r,r.guidance)?'Đã ký số – chờ ban hành':'Chờ lãnh đạo ký')+'</div>');
     document.getElementById(target).innerHTML=html+'<div id="kh1Feedback" hidden></div>';document.getElementById(target).classList.add('active');renderExtended(r);renderList();}
   function fileRow(f,i,r){const generated=['guidance','gnv','submission'].includes(f.kind),issuer=f.source?'Tập đoàn':f.author?W.roles[f.author].replace(/^PM /,''):r.kind==='GNV'?'VNPT Net':'Tập đoàn',number=f.source?r.source.issue.number:f===r.guidance&&r.issue.issued?r.issue.number:f.number||'';

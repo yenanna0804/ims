@@ -14,10 +14,11 @@ for(const type of W.types){
  test(`${type}: hướng dẫn TĐ → ký → văn thư ban hành → PM Ban KT → hồ sơ GNV riêng`,()=>{
   const p=receive(type);assert.equal(W.canAssign(p,'ktPM'),true);assert.equal(W.canAssign(p,'tdPM'),false);
   const r=W.assignment(p,'ktPM','GNV-'+type);assert.equal(r.kind,'GNV');assert.equal(r.source.id,p.id);assert.equal(r.data.year,p.data.year);assert.deepEqual(r.data.types,p.data.types);
-  W.prepare(r,'ktPM');move(r,'ktPM','ktLead');assert.equal(W.canSign(r,'ktLead'),true);W.sign(r,'ktLead');move(r,'ktLead','tctLeader');W.sign(r,'tctLeader');
+  W.prepare(r,'ktPM');move(r,'ktPM','ktLead');assert.equal(W.canSign(r,'ktLead'),true);assert.equal(W.primaryDocument(r,'ktLead'),'submission');W.sign(r,'ktLead');move(r,'ktLead','tctLeader');W.sign(r,'tctLeader');
   assert.equal(W.canIssue(r,'tctLeader'),false);move(r,'tctLeader','tctClerk');W.issue(r,'tctClerk',{number:'812/VNPT Net-KT',date:'2026-10-02',recipients:r.data.recipients});W.linkAssignment(p,r);
   assert.equal(p.gnv.number,'812/VNPT Net-KT');assert.equal(p.issue.number,'HD/2027');assert.equal(p.guidance.signer,'tdLeader');assert.equal(r.guidance.signer,'tctLeader');
   move(r,'tctClerk','ktLead',{co:['ktmLead'],view:['ttpPM']});assert.equal(r.receipt.purpose,'IMPLEMENT');assert.equal(W.canSign(r,'ktLead'),false);assert.equal(W.canApprove(r,'ktLead'),false);assert.equal(W.canEdit(r,'ktLead'),false);
+  assert.equal(W.primaryDocument(r,'ktLead'),'outgoing');assert.equal(W.primaryDocument(r,'ktmLead'),'outgoing');
   assert.equal(W.canReceive(r,'ktmLead'),true);assert.equal(W.canReceive(r,'ttpPM'),true);assert.deepEqual(W.allowed(r,'tctClerk'),[]);
  });
  test(`${type}: không bắt xin thông tin bước 2 trong bước 1`,()=>{const r=guidance(type);assert.deepEqual(W.allowed(r,'tdPM'),['tdBanLead','ktPM','ktLead']);assert.equal(W.roleKeys(r).includes('ktmPM'),false);assert.throws(()=>move(r,'tdPM','ktmPM'));assert.equal(r.requests.length,0);});
